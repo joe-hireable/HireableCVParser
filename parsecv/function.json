@@ -1,0 +1,17 @@
+{
+    "bindings": [
+        {
+            "authLevel": "function",
+            "type": "httpTrigger",
+            "direction": "in",
+            "name": "req",
+            "route": "parsecv",
+            "methods": ["post"]
+        },
+        {
+            "type": "JSON",
+            "direction": "out",
+            "name": "$return"
+        }
+    ]
+}
