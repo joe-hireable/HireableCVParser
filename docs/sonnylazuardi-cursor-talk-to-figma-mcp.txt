@@ -1,0 +1,3737 @@
+Directory structure:
+└── sonnylazuardi-cursor-talk-to-figma-mcp/
+    ├── readme.md
+    ├── package.json
+    ├── images/
+    ├── scripts/
+    │   └── setup.sh
+    └── src/
+        ├── socket.ts
+        ├── cursor_mcp_plugin/
+        │   ├── code.js
+        │   ├── manifest.json
+        │   ├── setcharacters.js
+        │   └── ui.html
+        └── talk_to_figma_mcp/
+            ├── bun.lock
+            ├── package.json
+            ├── server.ts
+            └── tsconfig.json
+
+================================================
+File: readme.md
+================================================
+# Cursor Talk to Figma MCP
+
+This project implements a Model Context Protocol (MCP) integration between Cursor AI and Figma, allowing Cursor to communicate with Figma for reading designs and modifying them programmatically.
+
+https://github.com/user-attachments/assets/129a14d2-ed73-470f-9a4c-2240b2a4885c
+
+## Project Structure
+
+- `src/talk_to_figma_mcp/` - TypeScript MCP server for Figma integration
+- `src/cursor_mcp_plugin/` - Figma plugin for communicating with Cursor
+- `src/socket.ts` - WebSocket server that facilitates communication between the MCP server and Figma plugin
+
+## Get Started
+
+1. Install Bun if you haven't already:
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
+
+2. Run setup, this will also install MCP in your Cursor's active project
+
+```bash
+bun setup
+```
+
+3. Start the Websocket server
+
+```bash
+bun start
+```
+
+4. Install [Figma Plugin](#figma-plugin)
+
+# Quick Video Tutorial
+
+[![image](images/tutorial.jpg)](https://www.linkedin.com/posts/sonnylazuardi_just-wanted-to-share-my-latest-experiment-activity-7307821553654657024-yrh8)
+
+## Manual Setup and Installation
+
+### MCP Server: Integration with Cursor
+
+Add the server to your Cursor MCP configuration in `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "TalkToFigma": {
+      "command": "bun",
+      "args": [
+        "/path/to/cursor-talk-to-figma-mcp/src/talk_to_figma_mcp/server.ts"
+      ]
+    }
+  }
+}
+```
+
+### WebSocket Server
+
+Start the WebSocket server:
+
+```bash
+bun run src/socket.ts
+```
+
+### Figma Plugin
+
+1. In Figma, go to Plugins > Development > New Plugin
+2. Choose "Link existing plugin"
+3. Select the `src/cursor_mcp_plugin/manifest.json` file
+4. The plugin should now be available in your Figma development plugins
+
+## Usage
+
+1. Start the WebSocket server
+2. Install the MCP server in Cursor
+3. Open Figma and run the Cursor MCP Plugin
+4. Connect the plugin to the WebSocket server by joining a channel using `join_channel`
+5. Use Cursor to communicate with Figma using the MCP tools
+
+## MCP Tools
+
+The MCP server provides the following tools for interacting with Figma:
+
+### Document & Selection
+
+- `get_document_info` - Get information about the current Figma document
+- `get_selection` - Get information about the current selection
+- `get_node_info` - Get detailed information about a specific node
+
+### Creating Elements
+
+- `create_rectangle` - Create a new rectangle with position, size, and optional name
+- `create_frame` - Create a new frame with position, size, and optional name
+- `create_text` - Create a new text node with customizable font properties
+
+### Modifying text content
+
+- `set_text_content` - Set the text content of an existing text node
+
+### Styling
+
+- `set_fill_color` - Set the fill color of a node (RGBA)
+- `set_stroke_color` - Set the stroke color and weight of a node
+- `set_corner_radius` - Set the corner radius of a node with optional per-corner control
+
+### Layout & Organization
+
+- `move_node` - Move a node to a new position
+- `resize_node` - Resize a node with new dimensions
+- `delete_node` - Delete a node
+
+### Components & Styles
+
+- `get_styles` - Get information about local styles
+- `get_local_components` - Get information about local components
+- `get_team_components` - Get information about team components
+- `create_component_instance` - Create an instance of a component
+
+### Export & Advanced
+
+- `export_node_as_image` - Export a node as an image (PNG, JPG, SVG, or PDF)
+- `execute_figma_code` - Execute arbitrary JavaScript code in Figma (use with caution)
+
+### Connection Management
+
+- `join_channel` - Join a specific channel to communicate with Figma
+
+## Development
+
+### Building the Figma Plugin
+
+1. Navigate to the Figma plugin directory:
+
+   ```
+   cd src/cursor_mcp_plugin
+   ```
+
+2. Edit code.js and ui.html
+
+## Best Practices
+
+When working with the Figma MCP:
+
+1. Always join a channel before sending commands
+2. Get document overview using `get_document_info` first
+3. Check current selection with `get_selection` before modifications
+4. Use appropriate creation tools based on needs:
+   - `create_frame` for containers
+   - `create_rectangle` for basic shapes
+   - `create_text` for text elements
+5. Verify changes using `get_node_info`
+6. Use component instances when possible for consistency
+7. Handle errors appropriately as all commands can throw exceptions
+
+## License
+
+MIT
+
+
+
+================================================
+File: package.json
+================================================
+{
+  "name": "cursor-talk-to-figma-mcp",
+  "version": "1.0.0",
+  "description": "Cursor Talk to Figma MCP",
+  "main": "src/socket.ts",
+  "scripts": {
+    "setup": "./scripts/setup.sh",
+    "start": "bun run src/socket.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "latest",
+    "bun": "latest",
+    "uuid": "latest",
+    "ws": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.0"
+  }
+}
+
+
+
+================================================
+File: scripts/setup.sh
+================================================
+#!/bin/bash
+
+# Create .cursor directory if it doesn't exist
+mkdir -p .cursor
+
+# Get current directory path
+CURRENT_DIR=$(pwd)
+
+bun install
+
+# Create mcp.json with the current directory path
+echo "{
+  \"mcpServers\": {
+    \"TalkToFigma\": {
+      \"command\": \"bun\",
+      \"args\": [
+        \"${CURRENT_DIR}/src/talk_to_figma_mcp/server.ts\"
+      ]
+    }
+  }
+}" > .cursor/mcp.json 
+
+
+================================================
+File: src/socket.ts
+================================================
+import { Server, ServerWebSocket } from "bun";
+
+// Store clients by channel
+const channels = new Map<string, Set<ServerWebSocket<any>>>();
+
+function handleConnection(ws: ServerWebSocket<any>) {
+  // Don't add to clients immediately - wait for channel join
+  console.log("New client connected");
+
+  // Send welcome message to the new client
+  ws.send(JSON.stringify({
+    type: "system",
+    message: "Please join a channel to start chatting",
+  }));
+
+  ws.close = () => {
+    console.log("Client disconnected");
+
+    // Remove client from their channel
+    channels.forEach((clients, channelName) => {
+      if (clients.has(ws)) {
+        clients.delete(ws);
+
+        // Notify other clients in same channel
+        clients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({
+              type: "system",
+              message: "A user has left the channel",
+              channel: channelName
+            }));
+          }
+        });
+      }
+    });
+  };
+}
+
+const server = Bun.serve({
+  port: 3055,
+  fetch(req: Request, server: Server) {
+    // Handle CORS preflight
+    if (req.method === "OPTIONS") {
+      return new Response(null, {
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        },
+      });
+    }
+
+    // Handle WebSocket upgrade
+    const success = server.upgrade(req, {
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+
+    if (success) {
+      return; // Upgraded to WebSocket
+    }
+
+    // Return response for non-WebSocket requests
+    return new Response("WebSocket server running", {
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+  },
+  websocket: {
+    open: handleConnection,
+    message(ws: ServerWebSocket<any>, message: string | Buffer) {
+      try {
+        console.log("Received message from client:", message);
+        const data = JSON.parse(message as string);
+
+        if (data.type === "join") {
+          const channelName = data.channel;
+          if (!channelName || typeof channelName !== "string") {
+            ws.send(JSON.stringify({
+              type: "error",
+              message: "Channel name is required"
+            }));
+            return;
+          }
+
+          // Create channel if it doesn't exist
+          if (!channels.has(channelName)) {
+            channels.set(channelName, new Set());
+          }
+
+          // Add client to channel
+          const channelClients = channels.get(channelName)!;
+          channelClients.add(ws);
+
+          // Notify client they joined successfully
+          ws.send(JSON.stringify({
+            type: "system",
+            message: `Joined channel: ${channelName}`,
+            channel: channelName
+          }));
+
+          console.log("Sending message to client:", data.id);
+
+          ws.send(JSON.stringify({
+            type: "system",
+            message: {
+              id: data.id,
+              result: "Connected to channel: " + channelName,
+            },
+            channel: channelName
+          }));
+
+          // Notify other clients in channel
+          channelClients.forEach((client) => {
+            if (client !== ws && client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify({
+                type: "system",
+                message: "A new user has joined the channel",
+                channel: channelName
+              }));
+            }
+          });
+          return;
+        }
+
+        // Handle regular messages
+        if (data.type === "message") {
+          const channelName = data.channel;
+          if (!channelName || typeof channelName !== "string") {
+            ws.send(JSON.stringify({
+              type: "error",
+              message: "Channel name is required"
+            }));
+            return;
+          }
+
+          const channelClients = channels.get(channelName);
+          if (!channelClients || !channelClients.has(ws)) {
+            ws.send(JSON.stringify({
+              type: "error",
+              message: "You must join the channel first"
+            }));
+            return;
+          }
+
+          // Broadcast to all clients in the channel
+          channelClients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+              console.log("Broadcasting message to client:", data.message);
+              client.send(JSON.stringify({
+                type: "broadcast",
+                message: data.message,
+                sender: client === ws ? "You" : "User",
+                channel: channelName
+              }));
+            }
+          });
+        }
+      } catch (err) {
+        console.error("Error handling message:", err);
+      }
+    },
+    close(ws: ServerWebSocket<any>) {
+      // Remove client from their channel
+      channels.forEach((clients) => {
+        clients.delete(ws);
+      });
+    }
+  }
+});
+
+console.log(`WebSocket server running on port ${server.port}`);
+
+
+
+================================================
+File: src/cursor_mcp_plugin/code.js
+================================================
+// This is the main code file for the Cursor MCP Figma plugin
+// It handles Figma API commands
+
+// Plugin state
+const state = {
+  serverPort: 3055, // Default port
+};
+
+// Show UI
+figma.showUI(__html__, { width: 350, height: 450 });
+
+// Plugin commands from UI
+figma.ui.onmessage = async (msg) => {
+  switch (msg.type) {
+    case "update-settings":
+      updateSettings(msg);
+      break;
+    case "notify":
+      figma.notify(msg.message);
+      break;
+    case "close-plugin":
+      figma.closePlugin();
+      break;
+    case "execute-command":
+      // Execute commands received from UI (which gets them from WebSocket)
+      try {
+        const result = await handleCommand(msg.command, msg.params);
+        // Send result back to UI
+        figma.ui.postMessage({
+          type: "command-result",
+          id: msg.id,
+          result,
+        });
+      } catch (error) {
+        figma.ui.postMessage({
+          type: "command-error",
+          id: msg.id,
+          error: error.message || "Error executing command",
+        });
+      }
+      break;
+  }
+};
+
+// Listen for plugin commands from menu
+figma.on("run", ({ command }) => {
+  figma.ui.postMessage({ type: "auto-connect" });
+});
+
+// Update plugin settings
+function updateSettings(settings) {
+  if (settings.serverPort) {
+    state.serverPort = settings.serverPort;
+  }
+
+  figma.clientStorage.setAsync("settings", {
+    serverPort: state.serverPort,
+  });
+}
+
+// Handle commands from UI
+async function handleCommand(command, params) {
+  switch (command) {
+    case "get_document_info":
+      return await getDocumentInfo();
+    case "get_selection":
+      return await getSelection();
+    case "get_node_info":
+      if (!params || !params.nodeId) {
+        throw new Error("Missing nodeId parameter");
+      }
+      return await getNodeInfo(params.nodeId);
+    case "create_rectangle":
+      return await createRectangle(params);
+    case "create_frame":
+      return await createFrame(params);
+    case "create_text":
+      return await createText(params);
+    case "set_fill_color":
+      return await setFillColor(params);
+    case "set_stroke_color":
+      return await setStrokeColor(params);
+    case "move_node":
+      return await moveNode(params);
+    case "resize_node":
+      return await resizeNode(params);
+    case "delete_node":
+      return await deleteNode(params);
+    case "get_styles":
+      return await getStyles();
+    case "get_local_components":
+      return await getLocalComponents();
+    // case "get_team_components":
+    //   return await getTeamComponents();
+    case "create_component_instance":
+      return await createComponentInstance(params);
+    case "export_node_as_image":
+      return await exportNodeAsImage(params);
+    case "execute_code":
+      return await executeCode(params);
+    case "set_corner_radius":
+      return await setCornerRadius(params);
+    case "set_text_content":
+      return await setTextContent(params);
+    default:
+      throw new Error(`Unknown command: ${command}`);
+  }
+}
+
+// Command implementations
+
+async function getDocumentInfo() {
+  await figma.currentPage.loadAsync();
+  const page = figma.currentPage;
+  return {
+    name: page.name,
+    id: page.id,
+    type: page.type,
+    children: page.children.map((node) => ({
+      id: node.id,
+      name: node.name,
+      type: node.type,
+    })),
+    currentPage: {
+      id: page.id,
+      name: page.name,
+      childCount: page.children.length,
+    },
+    pages: [
+      {
+        id: page.id,
+        name: page.name,
+        childCount: page.children.length,
+      },
+    ],
+  };
+}
+
+async function getSelection() {
+  return {
+    selectionCount: figma.currentPage.selection.length,
+    selection: figma.currentPage.selection.map((node) => ({
+      id: node.id,
+      name: node.name,
+      type: node.type,
+      visible: node.visible,
+    })),
+  };
+}
+
+async function getNodeInfo(nodeId) {
+  const node = await figma.getNodeByIdAsync(nodeId);
+
+  if (!node) {
+    throw new Error(`Node not found with ID: ${nodeId}`);
+  }
+
+  // Base node information
+  const nodeInfo = {
+    id: node.id,
+    name: node.name,
+    type: node.type,
+    visible: node.visible,
+  };
+
+  // Add position and size for SceneNode
+  if ("x" in node && "y" in node) {
+    nodeInfo.x = node.x;
+    nodeInfo.y = node.y;
+  }
+
+  if ("width" in node && "height" in node) {
+    nodeInfo.width = node.width;
+    nodeInfo.height = node.height;
+  }
+
+  // Add fills for nodes with fills
+  if ("fills" in node) {
+    nodeInfo.fills = node.fills;
+  }
+
+  // Add strokes for nodes with strokes
+  if ("strokes" in node) {
+    nodeInfo.strokes = node.strokes;
+    if ("strokeWeight" in node) {
+      nodeInfo.strokeWeight = node.strokeWeight;
+    }
+  }
+
+  // Add children for parent nodes
+  if ("children" in node) {
+    nodeInfo.children = node.children.map((child) => ({
+      id: child.id,
+      name: child.name,
+      type: child.type,
+    }));
+  }
+
+  // Add text-specific properties
+  if (node.type === "TEXT") {
+    nodeInfo.characters = node.characters;
+    nodeInfo.fontSize = node.fontSize;
+    nodeInfo.fontName = node.fontName;
+  }
+
+  return nodeInfo;
+}
+
+async function createRectangle(params) {
+  const {
+    x = 0,
+    y = 0,
+    width = 100,
+    height = 100,
+    name = "Rectangle",
+    parentId,
+  } = params || {};
+
+  const rect = figma.createRectangle();
+  rect.x = x;
+  rect.y = y;
+  rect.resize(width, height);
+  rect.name = name;
+
+  // If parentId is provided, append to that node, otherwise append to current page
+  if (parentId) {
+    const parentNode = await figma.getNodeByIdAsync(parentId);
+    if (!parentNode) {
+      throw new Error(`Parent node not found with ID: ${parentId}`);
+    }
+    if (!("appendChild" in parentNode)) {
+      throw new Error(`Parent node does not support children: ${parentId}`);
+    }
+    parentNode.appendChild(rect);
+  } else {
+    figma.currentPage.appendChild(rect);
+  }
+
+  return {
+    id: rect.id,
+    name: rect.name,
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height,
+    parentId: rect.parent ? rect.parent.id : undefined,
+  };
+}
+
+async function createFrame(params) {
+  const {
+    x = 0,
+    y = 0,
+    width = 100,
+    height = 100,
+    name = "Frame",
+    parentId,
+    fillColor,
+    strokeColor,
+    strokeWeight,
+  } = params || {};
+
+  const frame = figma.createFrame();
+  frame.x = x;
+  frame.y = y;
+  frame.resize(width, height);
+  frame.name = name;
+
+  // Set fill color if provided
+  if (fillColor) {
+    const paintStyle = {
+      type: "SOLID",
+      color: {
+        r: parseFloat(fillColor.r) || 0,
+        g: parseFloat(fillColor.g) || 0,
+        b: parseFloat(fillColor.b) || 0,
+      },
+      opacity: parseFloat(fillColor.a) || 1,
+    };
+    frame.fills = [paintStyle];
+  }
+
+  // Set stroke color and weight if provided
+  if (strokeColor) {
+    const strokeStyle = {
+      type: "SOLID",
+      color: {
+        r: parseFloat(strokeColor.r) || 0,
+        g: parseFloat(strokeColor.g) || 0,
+        b: parseFloat(strokeColor.b) || 0,
+      },
+      opacity: parseFloat(strokeColor.a) || 1,
+    };
+    frame.strokes = [strokeStyle];
+  }
+
+  // Set stroke weight if provided
+  if (strokeWeight !== undefined) {
+    frame.strokeWeight = strokeWeight;
+  }
+
+  // If parentId is provided, append to that node, otherwise append to current page
+  if (parentId) {
+    const parentNode = await figma.getNodeByIdAsync(parentId);
+    if (!parentNode) {
+      throw new Error(`Parent node not found with ID: ${parentId}`);
+    }
+    if (!("appendChild" in parentNode)) {
+      throw new Error(`Parent node does not support children: ${parentId}`);
+    }
+    parentNode.appendChild(frame);
+  } else {
+    figma.currentPage.appendChild(frame);
+  }
+
+  return {
+    id: frame.id,
+    name: frame.name,
+    x: frame.x,
+    y: frame.y,
+    width: frame.width,
+    height: frame.height,
+    fills: frame.fills,
+    strokes: frame.strokes,
+    strokeWeight: frame.strokeWeight,
+    parentId: frame.parent ? frame.parent.id : undefined,
+  };
+}
+
+async function createText(params) {
+  const {
+    x = 0,
+    y = 0,
+    text = "Text",
+    fontSize = 14,
+    fontWeight = 400,
+    fontColor = { r: 0, g: 0, b: 0, a: 1 }, // Default to black
+    name = "Text",
+    parentId,
+  } = params || {};
+
+  // Map common font weights to Figma font styles
+  const getFontStyle = (weight) => {
+    switch (weight) {
+      case 100:
+        return "Thin";
+      case 200:
+        return "Extra Light";
+      case 300:
+        return "Light";
+      case 400:
+        return "Regular";
+      case 500:
+        return "Medium";
+      case 600:
+        return "Semi Bold";
+      case 700:
+        return "Bold";
+      case 800:
+        return "Extra Bold";
+      case 900:
+        return "Black";
+      default:
+        return "Regular";
+    }
+  };
+
+  const textNode = figma.createText();
+  textNode.x = x;
+  textNode.y = y;
+  textNode.name = name;
+  try {
+    await figma.loadFontAsync({
+      family: "Inter",
+      style: getFontStyle(fontWeight),
+    });
+    textNode.fontName = { family: "Inter", style: getFontStyle(fontWeight) };
+    textNode.fontSize = parseInt(fontSize);
+  } catch (error) {
+    console.error("Error setting font size", error);
+  }
+  setCharacters(textNode, text);
+
+  // Set text color
+  const paintStyle = {
+    type: "SOLID",
+    color: {
+      r: parseFloat(fontColor.r) || 0,
+      g: parseFloat(fontColor.g) || 0,
+      b: parseFloat(fontColor.b) || 0,
+    },
+    opacity: parseFloat(fontColor.a) || 1,
+  };
+  textNode.fills = [paintStyle];
+
+  // If parentId is provided, append to that node, otherwise append to current page
+  if (parentId) {
+    const parentNode = await figma.getNodeByIdAsync(parentId);
+    if (!parentNode) {
+      throw new Error(`Parent node not found with ID: ${parentId}`);
+    }
+    if (!("appendChild" in parentNode)) {
+      throw new Error(`Parent node does not support children: ${parentId}`);
+    }
+    parentNode.appendChild(textNode);
+  } else {
+    figma.currentPage.appendChild(textNode);
+  }
+
+  return {
+    id: textNode.id,
+    name: textNode.name,
+    x: textNode.x,
+    y: textNode.y,
+    width: textNode.width,
+    height: textNode.height,
+    characters: textNode.characters,
+    fontSize: textNode.fontSize,
+    fontWeight: fontWeight,
+    fontColor: fontColor,
+    fontName: textNode.fontName,
+    fills: textNode.fills,
+    parentId: textNode.parent ? textNode.parent.id : undefined,
+  };
+}
+
+async function setFillColor(params) {
+  console.log("setFillColor", params);
+  const {
+    nodeId,
+    color: { r, g, b, a },
+  } = params || {};
+
+  if (!nodeId) {
+    throw new Error("Missing nodeId parameter");
+  }
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`Node not found with ID: ${nodeId}`);
+  }
+
+  if (!("fills" in node)) {
+    throw new Error(`Node does not support fills: ${nodeId}`);
+  }
+
+  // Create RGBA color
+  const rgbColor = {
+    r: parseFloat(r) || 0,
+    g: parseFloat(g) || 0,
+    b: parseFloat(b) || 0,
+    a: parseFloat(a) || 1,
+  };
+
+  // Set fill
+  const paintStyle = {
+    type: "SOLID",
+    color: {
+      r: parseFloat(rgbColor.r),
+      g: parseFloat(rgbColor.g),
+      b: parseFloat(rgbColor.b),
+    },
+    opacity: parseFloat(rgbColor.a),
+  };
+
+  console.log("paintStyle", paintStyle);
+
+  node.fills = [paintStyle];
+
+  return {
+    id: node.id,
+    name: node.name,
+    fills: [paintStyle],
+  };
+}
+
+async function setStrokeColor(params) {
+  const {
+    nodeId,
+    color: { r, g, b, a },
+    weight = 1,
+  } = params || {};
+
+  if (!nodeId) {
+    throw new Error("Missing nodeId parameter");
+  }
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`Node not found with ID: ${nodeId}`);
+  }
+
+  if (!("strokes" in node)) {
+    throw new Error(`Node does not support strokes: ${nodeId}`);
+  }
+
+  // Create RGBA color
+  const rgbColor = {
+    r: r !== undefined ? r : 0,
+    g: g !== undefined ? g : 0,
+    b: b !== undefined ? b : 0,
+    a: a !== undefined ? a : 1,
+  };
+
+  // Set stroke
+  const paintStyle = {
+    type: "SOLID",
+    color: {
+      r: rgbColor.r,
+      g: rgbColor.g,
+      b: rgbColor.b,
+    },
+    opacity: rgbColor.a,
+  };
+
+  node.strokes = [paintStyle];
+
+  // Set stroke weight if available
+  if ("strokeWeight" in node) {
+    node.strokeWeight = weight;
+  }
+
+  return {
+    id: node.id,
+    name: node.name,
+    strokes: node.strokes,
+    strokeWeight: "strokeWeight" in node ? node.strokeWeight : undefined,
+  };
+}
+
+async function moveNode(params) {
+  const { nodeId, x, y } = params || {};
+
+  if (!nodeId) {
+    throw new Error("Missing nodeId parameter");
+  }
+
+  if (x === undefined || y === undefined) {
+    throw new Error("Missing x or y parameters");
+  }
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`Node not found with ID: ${nodeId}`);
+  }
+
+  if (!("x" in node) || !("y" in node)) {
+    throw new Error(`Node does not support position: ${nodeId}`);
+  }
+
+  node.x = x;
+  node.y = y;
+
+  return {
+    id: node.id,
+    name: node.name,
+    x: node.x,
+    y: node.y,
+  };
+}
+
+async function resizeNode(params) {
+  const { nodeId, width, height } = params || {};
+
+  if (!nodeId) {
+    throw new Error("Missing nodeId parameter");
+  }
+
+  if (width === undefined || height === undefined) {
+    throw new Error("Missing width or height parameters");
+  }
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`Node not found with ID: ${nodeId}`);
+  }
+
+  if (!("resize" in node)) {
+    throw new Error(`Node does not support resizing: ${nodeId}`);
+  }
+
+  node.resize(width, height);
+
+  return {
+    id: node.id,
+    name: node.name,
+    width: node.width,
+    height: node.height,
+  };
+}
+
+async function deleteNode(params) {
+  const { nodeId } = params || {};
+
+  if (!nodeId) {
+    throw new Error("Missing nodeId parameter");
+  }
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`Node not found with ID: ${nodeId}`);
+  }
+
+  // Save node info before deleting
+  const nodeInfo = {
+    id: node.id,
+    name: node.name,
+    type: node.type,
+  };
+
+  node.remove();
+
+  return nodeInfo;
+}
+
+async function getStyles() {
+  const styles = {
+    colors: await figma.getLocalPaintStylesAsync(),
+    texts: await figma.getLocalTextStylesAsync(),
+    effects: await figma.getLocalEffectStylesAsync(),
+    grids: await figma.getLocalGridStylesAsync(),
+  };
+
+  return {
+    colors: styles.colors.map((style) => ({
+      id: style.id,
+      name: style.name,
+      key: style.key,
+      paint: style.paints[0],
+    })),
+    texts: styles.texts.map((style) => ({
+      id: style.id,
+      name: style.name,
+      key: style.key,
+      fontSize: style.fontSize,
+      fontName: style.fontName,
+    })),
+    effects: styles.effects.map((style) => ({
+      id: style.id,
+      name: style.name,
+      key: style.key,
+    })),
+    grids: styles.grids.map((style) => ({
+      id: style.id,
+      name: style.name,
+      key: style.key,
+    })),
+  };
+}
+
+async function getLocalComponents() {
+  await figma.loadAllPagesAsync();
+
+  const components = figma.root.findAllWithCriteria({
+    types: ["COMPONENT"],
+  });
+
+  return {
+    count: components.length,
+    components: components.map((component) => ({
+      id: component.id,
+      name: component.name,
+      key: "key" in component ? component.key : null,
+    })),
+  };
+}
+
+// async function getTeamComponents() {
+//   try {
+//     const teamComponents =
+//       await figma.teamLibrary.getAvailableComponentsAsync();
+
+//     return {
+//       count: teamComponents.length,
+//       components: teamComponents.map((component) => ({
+//         key: component.key,
+//         name: component.name,
+//         description: component.description,
+//         libraryName: component.libraryName,
+//       })),
+//     };
+//   } catch (error) {
+//     throw new Error(`Error getting team components: ${error.message}`);
+//   }
+// }
+
+async function createComponentInstance(params) {
+  const { componentKey, x = 0, y = 0 } = params || {};
+
+  if (!componentKey) {
+    throw new Error("Missing componentKey parameter");
+  }
+
+  try {
+    const component = await figma.importComponentByKeyAsync(componentKey);
+    const instance = component.createInstance();
+
+    instance.x = x;
+    instance.y = y;
+
+    figma.currentPage.appendChild(instance);
+
+    return {
+      id: instance.id,
+      name: instance.name,
+      x: instance.x,
+      y: instance.y,
+      width: instance.width,
+      height: instance.height,
+      componentId: instance.componentId,
+    };
+  } catch (error) {
+    throw new Error(`Error creating component instance: ${error.message}`);
+  }
+}
+
+async function exportNodeAsImage(params) {
+  const { nodeId, format = "PNG", scale = 1 } = params || {};
+
+  if (!nodeId) {
+    throw new Error("Missing nodeId parameter");
+  }
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`Node not found with ID: ${nodeId}`);
+  }
+
+  if (!("exportAsync" in node)) {
+    throw new Error(`Node does not support exporting: ${nodeId}`);
+  }
+
+  try {
+    const settings = {
+      format: format,
+      constraint: { type: "SCALE", value: scale },
+    };
+
+    const bytes = await node.exportAsync(settings);
+
+    let mimeType;
+    switch (format) {
+      case "PNG":
+        mimeType = "image/png";
+        break;
+      case "JPG":
+        mimeType = "image/jpeg";
+        break;
+      case "SVG":
+        mimeType = "image/svg+xml";
+        break;
+      case "PDF":
+        mimeType = "application/pdf";
+        break;
+      default:
+        mimeType = "application/octet-stream";
+    }
+
+    // Convert to base64
+    const uint8Array = new Uint8Array(bytes);
+    let binary = "";
+    for (let i = 0; i < uint8Array.length; i++) {
+      binary += String.fromCharCode(uint8Array[i]);
+    }
+    const base64 = btoa(binary);
+    const imageData = `data:${mimeType};base64,${base64}`;
+
+    return {
+      nodeId,
+      format,
+      scale,
+      mimeType,
+      imageData,
+    };
+  } catch (error) {
+    throw new Error(`Error exporting node as image: ${error.message}`);
+  }
+}
+
+async function executeCode(params) {
+  const { code } = params || {};
+
+  if (!code) {
+    throw new Error("Missing code parameter");
+  }
+
+  try {
+    // Execute the provided code
+    // Note: This is potentially unsafe, but matches the Blender MCP functionality
+    const executeFn = new Function(
+      "figma",
+      "selection",
+      `
+      try {
+        const result = (async () => {
+          ${code}
+        })();
+        return result;
+      } catch (error) {
+        throw new Error('Error executing code: ' + error.message);
+      }
+    `
+    );
+
+    const result = await executeFn(figma, figma.currentPage.selection);
+    return { result };
+  } catch (error) {
+    throw new Error(`Error executing code: ${error.message}`);
+  }
+}
+
+async function setCornerRadius(params) {
+  const { nodeId, radius, corners } = params || {};
+
+  if (!nodeId) {
+    throw new Error("Missing nodeId parameter");
+  }
+
+  if (radius === undefined) {
+    throw new Error("Missing radius parameter");
+  }
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`Node not found with ID: ${nodeId}`);
+  }
+
+  // Check if node supports corner radius
+  if (!("cornerRadius" in node)) {
+    throw new Error(`Node does not support corner radius: ${nodeId}`);
+  }
+
+  // If corners array is provided, set individual corner radii
+  if (corners && Array.isArray(corners) && corners.length === 4) {
+    if ("topLeftRadius" in node) {
+      // Node supports individual corner radii
+      if (corners[0]) node.topLeftRadius = radius;
+      if (corners[1]) node.topRightRadius = radius;
+      if (corners[2]) node.bottomRightRadius = radius;
+      if (corners[3]) node.bottomLeftRadius = radius;
+    } else {
+      // Node only supports uniform corner radius
+      node.cornerRadius = radius;
+    }
+  } else {
+    // Set uniform corner radius
+    node.cornerRadius = radius;
+  }
+
+  return {
+    id: node.id,
+    name: node.name,
+    cornerRadius: "cornerRadius" in node ? node.cornerRadius : undefined,
+    topLeftRadius: "topLeftRadius" in node ? node.topLeftRadius : undefined,
+    topRightRadius: "topRightRadius" in node ? node.topRightRadius : undefined,
+    bottomRightRadius:
+      "bottomRightRadius" in node ? node.bottomRightRadius : undefined,
+    bottomLeftRadius:
+      "bottomLeftRadius" in node ? node.bottomLeftRadius : undefined,
+  };
+}
+
+async function setTextContent(params) {
+  const { nodeId, text } = params || {};
+
+  if (!nodeId) {
+    throw new Error("Missing nodeId parameter");
+  }
+
+  if (text === undefined) {
+    throw new Error("Missing text parameter");
+  }
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`Node not found with ID: ${nodeId}`);
+  }
+
+  if (node.type !== "TEXT") {
+    throw new Error(`Node is not a text node: ${nodeId}`);
+  }
+
+  try {
+    await figma.loadFontAsync(node.fontName);
+    
+    await setCharacters(node, text);
+
+    return {
+      id: node.id,
+      name: node.name,
+      characters: node.characters,
+      fontName: node.fontName
+    };
+  } catch (error) {
+    throw new Error(`Error setting text content: ${error.message}`);
+  }
+}
+
+// Initialize settings on load
+(async function initializePlugin() {
+  try {
+    const savedSettings = await figma.clientStorage.getAsync("settings");
+    if (savedSettings) {
+      if (savedSettings.serverPort) {
+        state.serverPort = savedSettings.serverPort;
+      }
+    }
+
+    // Send initial settings to UI
+    figma.ui.postMessage({
+      type: "init-settings",
+      settings: {
+        serverPort: state.serverPort,
+      },
+    });
+  } catch (error) {
+    console.error("Error loading settings:", error);
+  }
+})();
+
+function uniqBy(arr, predicate) {
+  const cb = typeof predicate === "function" ? predicate : (o) => o[predicate];
+  return [
+    ...arr
+      .reduce((map, item) => {
+        const key = item === null || item === undefined ? item : cb(item);
+
+        map.has(key) || map.set(key, item);
+
+        return map;
+      }, new Map())
+      .values(),
+  ];
+}
+const setCharacters = async (node, characters, options) => {
+  const fallbackFont = (options && options.fallbackFont) || {
+    family: "Inter",
+    style: "Regular",
+  };
+  try {
+    if (node.fontName === figma.mixed) {
+      if (options && options.smartStrategy === "prevail") {
+        const fontHashTree = {};
+        for (let i = 1; i < node.characters.length; i++) {
+          const charFont = node.getRangeFontName(i - 1, i);
+          const key = `${charFont.family}::${charFont.style}`;
+          fontHashTree[key] = fontHashTree[key] ? fontHashTree[key] + 1 : 1;
+        }
+        const prevailedTreeItem = Object.entries(fontHashTree).sort(
+          (a, b) => b[1] - a[1]
+        )[0];
+        const [family, style] = prevailedTreeItem[0].split("::");
+        const prevailedFont = {
+          family,
+          style,
+        };
+        await figma.loadFontAsync(prevailedFont);
+        node.fontName = prevailedFont;
+      } else if (options && options.smartStrategy === "strict") {
+        return setCharactersWithStrictMatchFont(node, characters, fallbackFont);
+      } else if (options && options.smartStrategy === "experimental") {
+        return setCharactersWithSmartMatchFont(node, characters, fallbackFont);
+      } else {
+        const firstCharFont = node.getRangeFontName(0, 1);
+        await figma.loadFontAsync(firstCharFont);
+        node.fontName = firstCharFont;
+      }
+    } else {
+      await figma.loadFontAsync({
+        family: node.fontName.family,
+        style: node.fontName.style,
+      });
+    }
+  } catch (err) {
+    console.warn(
+      `Failed to load "${node.fontName["family"]} ${node.fontName["style"]}" font and replaced with fallback "${fallbackFont.family} ${fallbackFont.style}"`,
+      err
+    );
+    await figma.loadFontAsync(fallbackFont);
+    node.fontName = fallbackFont;
+  }
+  try {
+    node.characters = characters;
+    return true;
+  } catch (err) {
+    console.warn(`Failed to set characters. Skipped.`, err);
+    return false;
+  }
+};
+
+const setCharactersWithStrictMatchFont = async (
+  node,
+  characters,
+  fallbackFont
+) => {
+  const fontHashTree = {};
+  for (let i = 1; i < node.characters.length; i++) {
+    const startIdx = i - 1;
+    const startCharFont = node.getRangeFontName(startIdx, i);
+    const startCharFontVal = `${startCharFont.family}::${startCharFont.style}`;
+    while (i < node.characters.length) {
+      i++;
+      const charFont = node.getRangeFontName(i - 1, i);
+      if (startCharFontVal !== `${charFont.family}::${charFont.style}`) {
+        break;
+      }
+    }
+    fontHashTree[`${startIdx}_${i}`] = startCharFontVal;
+  }
+  await figma.loadFontAsync(fallbackFont);
+  node.fontName = fallbackFont;
+  node.characters = characters;
+  console.log(fontHashTree);
+  await Promise.all(
+    Object.keys(fontHashTree).map(async (range) => {
+      console.log(range, fontHashTree[range]);
+      const [start, end] = range.split("_");
+      const [family, style] = fontHashTree[range].split("::");
+      const matchedFont = {
+        family,
+        style,
+      };
+      await figma.loadFontAsync(matchedFont);
+      return node.setRangeFontName(Number(start), Number(end), matchedFont);
+    })
+  );
+  return true;
+};
+
+const getDelimiterPos = (str, delimiter, startIdx = 0, endIdx = str.length) => {
+  const indices = [];
+  let temp = startIdx;
+  for (let i = startIdx; i < endIdx; i++) {
+    if (
+      str[i] === delimiter &&
+      i + startIdx !== endIdx &&
+      temp !== i + startIdx
+    ) {
+      indices.push([temp, i + startIdx]);
+      temp = i + startIdx + 1;
+    }
+  }
+  temp !== endIdx && indices.push([temp, endIdx]);
+  return indices.filter(Boolean);
+};
+
+const buildLinearOrder = (node) => {
+  const fontTree = [];
+  const newLinesPos = getDelimiterPos(node.characters, "\n");
+  newLinesPos.forEach(([newLinesRangeStart, newLinesRangeEnd], n) => {
+    const newLinesRangeFont = node.getRangeFontName(
+      newLinesRangeStart,
+      newLinesRangeEnd
+    );
+    if (newLinesRangeFont === figma.mixed) {
+      const spacesPos = getDelimiterPos(
+        node.characters,
+        " ",
+        newLinesRangeStart,
+        newLinesRangeEnd
+      );
+      spacesPos.forEach(([spacesRangeStart, spacesRangeEnd], s) => {
+        const spacesRangeFont = node.getRangeFontName(
+          spacesRangeStart,
+          spacesRangeEnd
+        );
+        if (spacesRangeFont === figma.mixed) {
+          const spacesRangeFont = node.getRangeFontName(
+            spacesRangeStart,
+            spacesRangeStart[0]
+          );
+          fontTree.push({
+            start: spacesRangeStart,
+            delimiter: " ",
+            family: spacesRangeFont.family,
+            style: spacesRangeFont.style,
+          });
+        } else {
+          fontTree.push({
+            start: spacesRangeStart,
+            delimiter: " ",
+            family: spacesRangeFont.family,
+            style: spacesRangeFont.style,
+          });
+        }
+      });
+    } else {
+      fontTree.push({
+        start: newLinesRangeStart,
+        delimiter: "\n",
+        family: newLinesRangeFont.family,
+        style: newLinesRangeFont.style,
+      });
+    }
+  });
+  return fontTree
+    .sort((a, b) => +a.start - +b.start)
+    .map(({ family, style, delimiter }) => ({ family, style, delimiter }));
+};
+
+const setCharactersWithSmartMatchFont = async (
+  node,
+  characters,
+  fallbackFont
+) => {
+  const rangeTree = buildLinearOrder(node);
+  const fontsToLoad = uniqBy(
+    rangeTree,
+    ({ family, style }) => `${family}::${style}`
+  ).map(({ family, style }) => ({
+    family,
+    style,
+  }));
+
+  await Promise.all([...fontsToLoad, fallbackFont].map(figma.loadFontAsync));
+
+  node.fontName = fallbackFont;
+  node.characters = characters;
+
+  let prevPos = 0;
+  rangeTree.forEach(({ family, style, delimiter }) => {
+    if (prevPos < node.characters.length) {
+      const delimeterPos = node.characters.indexOf(delimiter, prevPos);
+      const endPos =
+        delimeterPos > prevPos ? delimeterPos : node.characters.length;
+      const matchedFont = {
+        family,
+        style,
+      };
+      node.setRangeFontName(prevPos, endPos, matchedFont);
+      prevPos = endPos + 1;
+    }
+  });
+  return true;
+};
+
+
+
+================================================
+File: src/cursor_mcp_plugin/manifest.json
+================================================
+{
+  "name": "Cursor MCP Plugin",
+  "id": "cursor-mcp-plugin",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": [
+    "figma",
+    "figjam"
+  ],
+  "permissions": [],
+  "networkAccess": {
+    "allowedDomains": [
+      "https://google.com"
+    ],
+    "devAllowedDomains": [
+      "http://localhost:3055",
+      "ws://localhost:3055"
+    ]
+  },
+  "documentAccess": "dynamic-page",
+  "enableProposedApi": true,
+  "enablePrivatePluginApi": true
+}
+
+
+================================================
+File: src/cursor_mcp_plugin/setcharacters.js
+================================================
+function uniqBy(arr, predicate) {
+  const cb = typeof predicate === "function" ? predicate : (o) => o[predicate];
+  return [
+    ...arr
+      .reduce((map, item) => {
+        const key = item === null || item === undefined ? item : cb(item);
+
+        map.has(key) || map.set(key, item);
+
+        return map;
+      }, new Map())
+      .values(),
+  ];
+}
+export const setCharacters = async (node, characters, options) => {
+  const fallbackFont = options?.fallbackFont || {
+    family: "Roboto",
+    style: "Regular",
+  };
+  try {
+    if (node.fontName === figma.mixed) {
+      if (options?.smartStrategy === "prevail") {
+        const fontHashTree = {};
+        for (let i = 1; i < node.characters.length; i++) {
+          const charFont = node.getRangeFontName(i - 1, i);
+          const key = `${charFont.family}::${charFont.style}`;
+          fontHashTree[key] = fontHashTree[key] ? fontHashTree[key] + 1 : 1;
+        }
+        const prevailedTreeItem = Object.entries(fontHashTree).sort(
+          (a, b) => b[1] - a[1]
+        )[0];
+        const [family, style] = prevailedTreeItem[0].split("::");
+        const prevailedFont = {
+          family,
+          style,
+        };
+        await figma.loadFontAsync(prevailedFont);
+        node.fontName = prevailedFont;
+      } else if (options?.smartStrategy === "strict") {
+        return setCharactersWithStrictMatchFont(node, characters, fallbackFont);
+      } else if (options?.smartStrategy === "experimental") {
+        return setCharactersWithSmartMatchFont(node, characters, fallbackFont);
+      } else {
+        const firstCharFont = node.getRangeFontName(0, 1);
+        await figma.loadFontAsync(firstCharFont);
+        node.fontName = firstCharFont;
+      }
+    } else {
+      await figma.loadFontAsync({
+        family: node.fontName.family,
+        style: node.fontName.style,
+      });
+    }
+  } catch (err) {
+    console.warn(
+      `Failed to load "${node.fontName["family"]} ${node.fontName["style"]}" font and replaced with fallback "${fallbackFont.family} ${fallbackFont.style}"`,
+      err
+    );
+    await figma.loadFontAsync(fallbackFont);
+    node.fontName = fallbackFont;
+  }
+  try {
+    node.characters = characters;
+    return true;
+  } catch (err) {
+    console.warn(`Failed to set characters. Skipped.`, err);
+    return false;
+  }
+};
+
+const setCharactersWithStrictMatchFont = async (
+  node,
+  characters,
+  fallbackFont
+) => {
+  const fontHashTree = {};
+  for (let i = 1; i < node.characters.length; i++) {
+    const startIdx = i - 1;
+    const startCharFont = node.getRangeFontName(startIdx, i);
+    const startCharFontVal = `${startCharFont.family}::${startCharFont.style}`;
+    while (i < node.characters.length) {
+      i++;
+      const charFont = node.getRangeFontName(i - 1, i);
+      if (startCharFontVal !== `${charFont.family}::${charFont.style}`) {
+        break;
+      }
+    }
+    fontHashTree[`${startIdx}_${i}`] = startCharFontVal;
+  }
+  await figma.loadFontAsync(fallbackFont);
+  node.fontName = fallbackFont;
+  node.characters = characters;
+  console.log(fontHashTree);
+  await Promise.all(
+    Object.keys(fontHashTree).map(async (range) => {
+      console.log(range, fontHashTree[range]);
+      const [start, end] = range.split("_");
+      const [family, style] = fontHashTree[range].split("::");
+      const matchedFont = {
+        family,
+        style,
+      };
+      await figma.loadFontAsync(matchedFont);
+      return node.setRangeFontName(Number(start), Number(end), matchedFont);
+    })
+  );
+  return true;
+};
+
+const getDelimiterPos = (str, delimiter, startIdx = 0, endIdx = str.length) => {
+  const indices = [];
+  let temp = startIdx;
+  for (let i = startIdx; i < endIdx; i++) {
+    if (
+      str[i] === delimiter &&
+      i + startIdx !== endIdx &&
+      temp !== i + startIdx
+    ) {
+      indices.push([temp, i + startIdx]);
+      temp = i + startIdx + 1;
+    }
+  }
+  temp !== endIdx && indices.push([temp, endIdx]);
+  return indices.filter(Boolean);
+};
+
+const buildLinearOrder = (node) => {
+  const fontTree = [];
+  const newLinesPos = getDelimiterPos(node.characters, "\n");
+  newLinesPos.forEach(([newLinesRangeStart, newLinesRangeEnd], n) => {
+    const newLinesRangeFont = node.getRangeFontName(
+      newLinesRangeStart,
+      newLinesRangeEnd
+    );
+    if (newLinesRangeFont === figma.mixed) {
+      const spacesPos = getDelimiterPos(
+        node.characters,
+        " ",
+        newLinesRangeStart,
+        newLinesRangeEnd
+      );
+      spacesPos.forEach(([spacesRangeStart, spacesRangeEnd], s) => {
+        const spacesRangeFont = node.getRangeFontName(
+          spacesRangeStart,
+          spacesRangeEnd
+        );
+        if (spacesRangeFont === figma.mixed) {
+          const spacesRangeFont = node.getRangeFontName(
+            spacesRangeStart,
+            spacesRangeStart[0]
+          );
+          fontTree.push({
+            start: spacesRangeStart,
+            delimiter: " ",
+            family: spacesRangeFont.family,
+            style: spacesRangeFont.style,
+          });
+        } else {
+          fontTree.push({
+            start: spacesRangeStart,
+            delimiter: " ",
+            family: spacesRangeFont.family,
+            style: spacesRangeFont.style,
+          });
+        }
+      });
+    } else {
+      fontTree.push({
+        start: newLinesRangeStart,
+        delimiter: "\n",
+        family: newLinesRangeFont.family,
+        style: newLinesRangeFont.style,
+      });
+    }
+  });
+  return fontTree
+    .sort((a, b) => +a.start - +b.start)
+    .map(({ family, style, delimiter }) => ({ family, style, delimiter }));
+};
+
+const setCharactersWithSmartMatchFont = async (
+  node,
+  characters,
+  fallbackFont
+) => {
+  const rangeTree = buildLinearOrder(node);
+  const fontsToLoad = uniqBy(
+    rangeTree,
+    ({ family, style }) => `${family}::${style}`
+  ).map(({ family, style }) => ({
+    family,
+    style,
+  }));
+
+  await Promise.all([...fontsToLoad, fallbackFont].map(figma.loadFontAsync));
+
+  node.fontName = fallbackFont;
+  node.characters = characters;
+
+  let prevPos = 0;
+  rangeTree.forEach(({ family, style, delimiter }) => {
+    if (prevPos < node.characters.length) {
+      const delimeterPos = node.characters.indexOf(delimiter, prevPos);
+      const endPos =
+        delimeterPos > prevPos ? delimeterPos : node.characters.length;
+      const matchedFont = {
+        family,
+        style,
+      };
+      node.setRangeFontName(prevPos, endPos, matchedFont);
+      prevPos = endPos + 1;
+    }
+  });
+  return true;
+};
+
+
+
+================================================
+File: src/cursor_mcp_plugin/ui.html
+================================================
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Cursor MCP Plugin</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        color: #e0e0e0;
+        background-color: #1e1e1e;
+      }
+      .container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+      h1 {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 10px;
+        color: #ffffff;
+      }
+      h2 {
+        font-size: 14px;
+        font-weight: 600;
+        margin-top: 20px;
+        margin-bottom: 8px;
+        color: #ffffff;
+      }
+      button {
+        background-color: #18a0fb;
+        border: none;
+        color: white;
+        padding: 8px 12px;
+        border-radius: 6px;
+        margin-top: 8px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background-color 0.2s;
+      }
+      button:hover {
+        background-color: #0d8ee0;
+      }
+      button.secondary {
+        background-color: #3d3d3d;
+        color: #e0e0e0;
+      }
+      button.secondary:hover {
+        background-color: #4d4d4d;
+      }
+      button:disabled {
+        background-color: #333333;
+        color: #666666;
+        cursor: not-allowed;
+      }
+      input {
+        border: 1px solid #444444;
+        border-radius: 4px;
+        padding: 8px;
+        margin-bottom: 12px;
+        font-size: 14px;
+        width: 100%;
+        box-sizing: border-box;
+        background-color: #2d2d2d;
+        color: #e0e0e0;
+      }
+      label {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #cccccc;
+      }
+      .status {
+        margin-top: 16px;
+        padding: 12px;
+        border-radius: 6px;
+        font-size: 14px;
+      }
+      .status.connected {
+        background-color: #1a472a;
+        color: #4ade80;
+      }
+      .status.disconnected {
+        background-color: #471a1a;
+        color: #ff9999;
+      }
+      .status.info {
+        background-color: #1a3147;
+        color: #66b3ff;
+      }
+      .section {
+        margin-bottom: 24px;
+      }
+      .hidden {
+        display: none;
+      }
+      .logo {
+        width: 50px;
+        height: 50px;
+      }
+      .header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+      .header-text {
+        margin-left: 12px;
+      }
+      .header-text h1 {
+        margin: 0;
+        font-size: 16px;
+      }
+      .header-text p {
+        margin: 4px 0 0 0;
+        font-size: 12px;
+        color: #999999;
+      }
+      .tabs {
+        display: flex;
+        border-bottom: 1px solid #444444;
+        margin-bottom: 16px;
+      }
+      .tab {
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        color: #999999;
+      }
+      .tab.active {
+        border-bottom: 2px solid #18a0fb;
+        color: #18a0fb;
+      }
+      .tab-content {
+        display: none;
+      }
+      .tab-content.active {
+        display: block;
+      }
+      .link {
+        color: #18a0fb;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      .link:hover {
+        text-decoration: underline;
+      }
+      .header-logo {
+        padding: 16px;
+        border-radius: 16px;
+        background-color: #333;
+      }
+      .header-logo-image {
+        width: 24px;
+        height: 24px;
+        object-fit: contain;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <div class="header-logo">
+          <img
+            class="header-logo-image"
+            src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8CAMAAAANIilAAAAABGdBTUEAALGPC/xhBQAAAAFzUkdCAK7OHOkAAAAJcEhZcwAAEJwAABCcASbNOjQAAAB1UExURUdwTP////////////////39/f////////////////////////////7+/v////////////39/f////////////////////////////////////////////////////39/fn5+ejo6P///+rq6uXl5f////Ly8gf4a04AAAAkdFJOUwAOdkZCfz04zIgbT0pkIagnm7C9b6C2LWqSxBMyB11W2Ovsy3D12ZYAAALtSURBVEjHndcJt6ogEADgXNAUcWlxSQVN3/3/P/EBAgJpWdM9p5ue78xANE2n05vIUduffgvn1oA0bX+hvRc1DYjTPHe+tiGIoqhx4zTNq/y72lMURQtmqasuPc4dAmgwfWuZrqquiw8uNnC5BRJT3YXhIZ7Xris0oLjlmOrArz7VHpOb6wpNee0ITVMHvvd25/qgvtFwla8dpxV7xnTi7dbed7iuTY16lZoV7iXQb3cqRgjVgoviKTZSUw2719pbD2OEVu5yjnqeOpZ75lMMobVzfUcwC6lrofGJpdb3jGtj6TkkNKRWtXMsU+ciNdfQUwe+zZ7/vo1CYYgv39G/kShMS6mHL+g8F96K2Uqi52E6j3DFnsc4uR/hMwugYd9bOLoeSTvPE1yx4/sLh9B9fKbziHVM3z/G+dKb5wdKdysxsNCc4+2l/yk7EnrOVhwGBt9auqJ0t9gR13C4cl77bdil88SPuK9jxrXksHjab48Mwo+4ha3aSbZJ52JpC4GFbY7OdsVst4Lls/mKZe1y6fXTonS3RFsIN7C5dAJsO+WiI21jbd8xesFEtoUdLLjH+qGNJ9WRuj3MOOQNycaV6khvsLc0MxsD2Uq7bhcHuBZh4rFdujjT1c6GkaXtszCx3sW3MRRfNjwiI7EjGjGfFjZwUgM9CuNggqRVXz+vOGDTBOCP5UnHE73ghjK1jYNlEIma9UnHBb/qdkvq1MSQjk4yCvGk4UneQylLbWAIio3I1t26q4sNTuM01tqQe9+My5pYv9wk8Ypv92w7JpXYulGoD8aJ3C/bUUp8tW5EuTa2oXI7ZGLzahZYE0l03QqZWI8Lfh1lw+zxEoNIrF8Dm/NQT8rzgz+WP/oQmL6Ud4pud/4DZzMWPKjXZfJufOyiVzzKV4/609yelDaWiZsDc6+DSwOLxNqxeD/6Ah3zf674+Kyf3xUeDi3WDFIKzCpOv/5phB4MD+cs/OWXVdych/GBf/xJd4pL9+1i/wOElMO5v/co4wAAAABJRU5ErkJggg=="
+          />
+        </div>
+        <div class="header-text">
+          <h1>Cursor Talk To Figma Plugin</h1>
+          <p>Connect Figma to Cursor AI using MCP</p>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <div id="tab-connection" class="tab active">Connection</div>
+        <div id="tab-about" class="tab">About</div>
+      </div>
+
+      <div id="content-connection" class="tab-content active">
+        <div class="section">
+          <label for="port">WebSocket Server Port</label>
+          <div style="display: flex; gap: 8px">
+            <input
+              type="number"
+              id="port"
+              placeholder="3055"
+              value="3055"
+              min="1024"
+              max="65535"
+            />
+            <button id="btn-connect" class="primary">Connect</button>
+          </div>
+        </div>
+
+        <div id="connection-status" class="status disconnected">
+          Not connected to Cursor MCP server
+        </div>
+
+        <div class="section">
+          <button id="btn-disconnect" class="secondary" disabled>
+            Disconnect
+          </button>
+        </div>
+      </div>
+
+      <div id="content-about" class="tab-content">
+        <div class="section">
+          <h2>About Cursor Talk To Figma Plugin</h2>
+          <p>
+            This plugin allows Cursor AI to communicate with Figma, enabling
+            AI-assisted design operations. created by
+            <a
+              class="link"
+              onclick="window.open(`https://github.com/sonnylazuardi`, '_blank')"
+              >Sonny</a
+            >
+          </p>
+          <p>Version: 1.0.0</p>
+
+          <h2>How to Use</h2>
+          <ol>
+            <li>Make sure the MCP server is running in Cursor</li>
+            <li>Connect to the server using the port number (default: 3055)</li>
+            <li>Once connected, you can interact with Figma through Cursor</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // WebSocket connection state
+      const state = {
+        connected: false,
+        socket: null,
+        serverPort: 3055,
+        pendingRequests: new Map(),
+        channel: null,
+      };
+
+      // UI Elements
+      const portInput = document.getElementById("port");
+      const connectButton = document.getElementById("btn-connect");
+      const disconnectButton = document.getElementById("btn-disconnect");
+      const connectionStatus = document.getElementById("connection-status");
+
+      // Tabs
+      const tabs = document.querySelectorAll(".tab");
+      const tabContents = document.querySelectorAll(".tab-content");
+
+      // Initialize UI
+      function updateConnectionStatus(isConnected, message) {
+        state.connected = isConnected;
+        connectionStatus.innerHTML =
+          message ||
+          (isConnected
+            ? "Connected to Cursor MCP server"
+            : "Not connected to Cursor MCP server");
+        connectionStatus.className = `status ${
+          isConnected ? "connected" : "disconnected"
+        }`;
+
+        connectButton.disabled = isConnected;
+        disconnectButton.disabled = !isConnected;
+        portInput.disabled = isConnected;
+      }
+
+      // Connect to WebSocket server
+      async function connectToServer(port) {
+        try {
+          if (state.connected && state.socket) {
+            updateConnectionStatus(true, "Already connected to server");
+            return;
+          }
+
+          state.serverPort = port;
+          state.socket = new WebSocket(`ws://localhost:${port}`);
+
+          state.socket.onopen = () => {
+            // Generate random channel name
+            const channelName = generateChannelName();
+            console.log("Joining channel:", channelName);
+            state.channel = channelName;
+
+            // Join the channel using the same format as App.tsx
+            state.socket.send(
+              JSON.stringify({
+                type: "join",
+                channel: channelName.trim(),
+              })
+            );
+          };
+
+          state.socket.onmessage = (event) => {
+            try {
+              const data = JSON.parse(event.data);
+              console.log("Received message:", data);
+
+              if (data.type === "system") {
+                // Successfully joined channel
+                if (data.message && data.message.result) {
+                  state.connected = true;
+                  const channelName = data.channel;
+                  updateConnectionStatus(
+                    true,
+                    `Connected to server on port ${port} in channel: <strong>${channelName}</strong>`
+                  );
+
+                  // Notify the plugin code
+                  parent.postMessage(
+                    {
+                      pluginMessage: {
+                        type: "notify",
+                        message: `Connected to Cursor MCP server on port ${port} in channel: ${channelName}`,
+                      },
+                    },
+                    "*"
+                  );
+                }
+              } else if (data.type === "error") {
+                console.error("Error:", data.message);
+                updateConnectionStatus(false, `Error: ${data.message}`);
+                state.socket.close();
+              }
+
+              handleSocketMessage(data);
+            } catch (error) {
+              console.error("Error parsing message:", error);
+            }
+          };
+
+          state.socket.onclose = () => {
+            state.connected = false;
+            state.socket = null;
+            updateConnectionStatus(false, "Disconnected from server");
+          };
+
+          state.socket.onerror = (error) => {
+            console.error("WebSocket error:", error);
+            updateConnectionStatus(false, "Connection error");
+            state.connected = false;
+            state.socket = null;
+          };
+        } catch (error) {
+          console.error("Connection error:", error);
+          updateConnectionStatus(
+            false,
+            `Connection error: ${error.message || "Unknown error"}`
+          );
+        }
+      }
+
+      // Disconnect from websocket server
+      function disconnectFromServer() {
+        if (state.socket) {
+          state.socket.close();
+          state.socket = null;
+          state.connected = false;
+          updateConnectionStatus(false, "Disconnected from server");
+        }
+      }
+
+      // Handle messages from the WebSocket
+      async function handleSocketMessage(payload) {
+        const data = payload.message;
+        console.log("handleSocketMessage", data);
+
+        // If it's a response to a previous request
+        if (data.id && state.pendingRequests.has(data.id)) {
+          console.log("go inside", data);
+
+          console.log("nice", data);
+          const { resolve, reject } = state.pendingRequests.get(data.id);
+          state.pendingRequests.delete(data.id);
+
+          if (data.error) {
+            reject(new Error(data.error));
+          } else {
+            resolve(data.result);
+          }
+          return;
+        }
+
+        // If it's a new command
+        if (data.command) {
+          try {
+            // Send the command to the plugin code
+            parent.postMessage(
+              {
+                pluginMessage: {
+                  type: "execute-command",
+                  id: data.id,
+                  command: data.command,
+                  params: data.params,
+                },
+              },
+              "*"
+            );
+          } catch (error) {
+            // Send error back to WebSocket
+            sendErrorResponse(
+              data.id,
+              error.message || "Error executing command"
+            );
+          }
+        }
+      }
+
+      // Send a command to the WebSocket server
+      async function sendCommand(command, params) {
+        return new Promise((resolve, reject) => {
+          if (!state.connected || !state.socket) {
+            reject(new Error("Not connected to server"));
+            return;
+          }
+
+          const id = generateId();
+          state.pendingRequests.set(id, { resolve, reject });
+
+          state.socket.send(
+            JSON.stringify({
+              id,
+              type: "message",
+              channel: state.channel,
+              message: {
+                id,
+                command,
+                params,
+              },
+            })
+          );
+
+          // Set timeout to reject the promise after 30 seconds
+          setTimeout(() => {
+            if (state.pendingRequests.has(id)) {
+              state.pendingRequests.delete(id);
+              reject(new Error("Request timed out"));
+            }
+          }, 30000);
+        });
+      }
+
+      // Send success response back to WebSocket
+      function sendSuccessResponse(id, result) {
+        if (!state.connected || !state.socket) {
+          console.error("Cannot send response: socket not connected");
+          return;
+        }
+
+        state.socket.send(
+          JSON.stringify({
+            id,
+            type: "message",
+            channel: state.channel,
+            message: {
+              id,
+              result,
+            },
+          })
+        );
+      }
+
+      // Send error response back to WebSocket
+      function sendErrorResponse(id, errorMessage) {
+        if (!state.connected || !state.socket) {
+          console.error("Cannot send error response: socket not connected");
+          return;
+        }
+
+        state.socket.send(
+          JSON.stringify({
+            id,
+            error: errorMessage,
+          })
+        );
+      }
+
+      // Helper to generate unique IDs
+      function generateId() {
+        return (
+          Date.now().toString(36) + Math.random().toString(36).substr(2, 5)
+        );
+      }
+
+      // Add this function after the generateId() function
+      function generateChannelName() {
+        const characters = "abcdefghijklmnopqrstuvwxyz0123456789";
+        let result = "";
+        for (let i = 0; i < 8; i++) {
+          result += characters.charAt(
+            Math.floor(Math.random() * characters.length)
+          );
+        }
+        return result;
+      }
+
+      // Tab switching
+      tabs.forEach((tab) => {
+        tab.addEventListener("click", () => {
+          tabs.forEach((t) => t.classList.remove("active"));
+          tabContents.forEach((c) => c.classList.remove("active"));
+
+          tab.classList.add("active");
+          const contentId = "content-" + tab.id.split("-")[1];
+          document.getElementById(contentId).classList.add("active");
+        });
+      });
+
+      // Connect to server
+      connectButton.addEventListener("click", () => {
+        const port = parseInt(portInput.value, 10) || 3055;
+        updateConnectionStatus(false, "Connecting...");
+        connectionStatus.className = "status info";
+        connectToServer(port);
+      });
+
+      // Disconnect from server
+      disconnectButton.addEventListener("click", () => {
+        updateConnectionStatus(false, "Disconnecting...");
+        connectionStatus.className = "status info";
+        disconnectFromServer();
+      });
+
+      // Listen for messages from the plugin code
+      window.onmessage = (event) => {
+        const message = event.data.pluginMessage;
+        if (!message) return;
+
+        switch (message.type) {
+          case "connection-status":
+            updateConnectionStatus(message.connected, message.message);
+            break;
+          case "auto-connect":
+            connectButton.click();
+            break;
+          case "auto-disconnect":
+            disconnectButton.click();
+            break;
+          case "command-result":
+            // Forward the result from plugin code back to WebSocket
+            sendSuccessResponse(message.id, message.result);
+            break;
+          case "command-error":
+            // Forward the error from plugin code back to WebSocket
+            sendErrorResponse(message.id, message.error);
+            break;
+        }
+      };
+    </script>
+  </body>
+</html>
+
+
+
+================================================
+File: src/talk_to_figma_mcp/bun.lock
+================================================
+{
+  "lockfileVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "talk-to-figma-mcp",
+      "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.4.0",
+        "uuid": "^9.0.1",
+        "ws": "^8.16.0",
+        "zod": "^3.22.4",
+      },
+      "devDependencies": {
+        "@types/node": "^20.10.5",
+        "@types/uuid": "^9.0.7",
+        "@types/ws": "^8.5.10",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.3.3",
+      },
+    },
+  },
+  "packages": {
+    "@cspotcode/source-map-support": ["@cspotcode/source-map-support@0.8.1", "", { "dependencies": { "@jridgewell/trace-mapping": "0.3.9" } }, "sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw=="],
+
+    "@jridgewell/resolve-uri": ["@jridgewell/resolve-uri@3.1.2", "", {}, "sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw=="],
+
+    "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.0", "", {}, "sha512-gv3ZRaISU3fjPAgNsriBRqGWQL6quFx04YMPW/zD8XMLsU32mhCCbfbO6KZFLjvYpCZ8zyDEgqsgf+PwPaM7GQ=="],
+
+    "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.9", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.0.3", "@jridgewell/sourcemap-codec": "^1.4.10" } }, "sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ=="],
+
+    "@modelcontextprotocol/sdk": ["@modelcontextprotocol/sdk@1.7.0", "", { "dependencies": { "content-type": "^1.0.5", "cors": "^2.8.5", "eventsource": "^3.0.2", "express": "^5.0.1", "express-rate-limit": "^7.5.0", "pkce-challenge": "^4.1.0", "raw-body": "^3.0.0", "zod": "^3.23.8", "zod-to-json-schema": "^3.24.1" } }, "sha512-IYPe/FLpvF3IZrd/f5p5ffmWhMc3aEMuM2wGJASDqC2Ge7qatVCdbfPx3n/5xFeb19xN0j/911M2AaFuircsWA=="],
+
+    "@tsconfig/node10": ["@tsconfig/node10@1.0.11", "", {}, "sha512-DcRjDCujK/kCk/cUe8Xz8ZSpm8mS3mNNpta+jGCA6USEDfktlNvm1+IuZ9eTcDbNk41BHwpHHeW+N1lKCz4zOw=="],
+
+    "@tsconfig/node12": ["@tsconfig/node12@1.0.11", "", {}, "sha512-cqefuRsh12pWyGsIoBKJA9luFu3mRxCA+ORZvA4ktLSzIuCUtWVxGIuXigEwO5/ywWFMZ2QEGKWvkZG1zDMTag=="],
+
+    "@tsconfig/node14": ["@tsconfig/node14@1.0.3", "", {}, "sha512-ysT8mhdixWK6Hw3i1V2AeRqZ5WfXg1G43mqoYlM2nc6388Fq5jcXyr5mRsqViLx/GJYdoL0bfXD8nmF+Zn/Iow=="],
+
+    "@tsconfig/node16": ["@tsconfig/node16@1.0.4", "", {}, "sha512-vxhUy4J8lyeyinH7Azl1pdd43GJhZH/tP2weN8TntQblOY+A0XbT8DJk1/oCPuOOyg/Ja757rG0CgHcWC8OfMA=="],
+
+    "@types/node": ["@types/node@20.17.24", "", { "dependencies": { "undici-types": "~6.19.2" } }, "sha512-d7fGCyB96w9BnWQrOsJtpyiSaBcAYYr75bnK6ZRjDbql2cGLj/3GsL5OYmLPNq76l7Gf2q4Rv9J2o6h5CrD9sA=="],
+
+    "@types/uuid": ["@types/uuid@9.0.8", "", {}, "sha512-jg+97EGIcY9AGHJJRaaPVgetKDsrTgbRjQ5Msgjh/DQKEFl0DtyRr/VCOyD1T2R1MNeWPK/u7JoGhlDZnKBAfA=="],
+
+    "@types/ws": ["@types/ws@8.18.0", "", { "dependencies": { "@types/node": "*" } }, "sha512-8svvI3hMyvN0kKCJMvTJP/x6Y/EoQbepff882wL+Sn5QsXb3etnamgrJq4isrBxSJj5L2AuXcI0+bgkoAXGUJw=="],
+
+    "accepts": ["accepts@2.0.0", "", { "dependencies": { "mime-types": "^3.0.0", "negotiator": "^1.0.0" } }, "sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng=="],
+
+    "acorn": ["acorn@8.14.1", "", { "bin": { "acorn": "bin/acorn" } }, "sha512-OvQ/2pUDKmgfCg++xsTX1wGxfTaszcHVcTctW4UJB4hibJx2HXxxO5UmVgyjMa+ZDsiaf5wWLXYpRWMmBI0QHg=="],
+
+    "acorn-walk": ["acorn-walk@8.3.4", "", { "dependencies": { "acorn": "^8.11.0" } }, "sha512-ueEepnujpqee2o5aIYnvHU6C0A42MNdsIDeqy5BydrkuC5R1ZuUFnm27EeFJGoEHJQgn3uleRvmTXaJgfXbt4g=="],
+
+    "arg": ["arg@4.1.3", "", {}, "sha512-58S9QDqG0Xx27YwPSt9fJxivjYl432YCwfDMfZ+71RAqUrZef7LrKQZ3LHLOwCS4FLNBplP533Zx895SeOCHvA=="],
+
+    "body-parser": ["body-parser@2.1.0", "", { "dependencies": { "bytes": "^3.1.2", "content-type": "^1.0.5", "debug": "^4.4.0", "http-errors": "^2.0.0", "iconv-lite": "^0.5.2", "on-finished": "^2.4.1", "qs": "^6.14.0", "raw-body": "^3.0.0", "type-is": "^2.0.0" } }, "sha512-/hPxh61E+ll0Ujp24Ilm64cykicul1ypfwjVttduAiEdtnJFvLePSrIPk+HMImtNv5270wOGCb1Tns2rybMkoQ=="],
+
+    "bytes": ["bytes@3.1.2", "", {}, "sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg=="],
+
+    "call-bind-apply-helpers": ["call-bind-apply-helpers@1.0.2", "", { "dependencies": { "es-errors": "^1.3.0", "function-bind": "^1.1.2" } }, "sha512-Sp1ablJ0ivDkSzjcaJdxEunN5/XvksFJ2sMBFfq6x0ryhQV/2b/KwFe21cMpmHtPOSij8K99/wSfoEuTObmuMQ=="],
+
+    "call-bound": ["call-bound@1.0.4", "", { "dependencies": { "call-bind-apply-helpers": "^1.0.2", "get-intrinsic": "^1.3.0" } }, "sha512-+ys997U96po4Kx/ABpBCqhA9EuxJaQWDQg7295H4hBphv3IZg0boBKuwYpt4YXp6MZ5AmZQnU/tyMTlRpaSejg=="],
+
+    "content-disposition": ["content-disposition@1.0.0", "", { "dependencies": { "safe-buffer": "5.2.1" } }, "sha512-Au9nRL8VNUut/XSzbQA38+M78dzP4D+eqg3gfJHMIHHYa3bg067xj1KxMUWj+VULbiZMowKngFFbKczUrNJ1mg=="],
+
+    "content-type": ["content-type@1.0.5", "", {}, "sha512-nTjqfcBFEipKdXCv4YDQWCfmcLZKm81ldF0pAopTvyrFGVbcR6P/VAAd5G7N+0tTr8QqiU0tFadD6FK4NtJwOA=="],
+
+    "cookie": ["cookie@0.7.1", "", {}, "sha512-6DnInpx7SJ2AK3+CTUE/ZM0vWTUboZCegxhC2xiIydHR9jNuTAASBrfEpHhiGOZw/nX51bHt6YQl8jsGo4y/0w=="],
+
+    "cookie-signature": ["cookie-signature@1.2.2", "", {}, "sha512-D76uU73ulSXrD1UXF4KE2TMxVVwhsnCgfAyTg9k8P6KGZjlXKrOLe4dJQKI3Bxi5wjesZoFXJWElNWBjPZMbhg=="],
+
+    "cors": ["cors@2.8.5", "", { "dependencies": { "object-assign": "^4", "vary": "^1" } }, "sha512-KIHbLJqu73RGr/hnbrO9uBeixNGuvSQjul/jdFvS/KFSIH1hWVd1ng7zOHx+YrEfInLG7q4n6GHQ9cDtxv/P6g=="],
+
+    "create-require": ["create-require@1.1.1", "", {}, "sha512-dcKFX3jn0MpIaXjisoRvexIJVEKzaq7z2rZKxf+MSr9TkdmHmsU4m2lcLojrj/FHl8mk5VxMmYA+ftRkP/3oKQ=="],
+
+    "debug": ["debug@4.3.6", "", { "dependencies": { "ms": "2.1.2" } }, "sha512-O/09Bd4Z1fBrU4VzkhFqVgpPzaGbw6Sm9FEkBT1A/YBXQFGuuSxa1dN2nxgxS34JmKXqYx8CZAwEVoJFImUXIg=="],
+
+    "depd": ["depd@2.0.0", "", {}, "sha512-g7nH6P6dyDioJogAAGprGpCtVImJhpPk/roCzdb3fIh61/s/nPsfR6onyMwkCAR/OlC3yBC0lESvUoQEAssIrw=="],
+
+    "destroy": ["destroy@1.2.0", "", {}, "sha512-2sJGJTaXIIaR1w4iJSNoN0hnMY7Gpc/n8D4qSCJw8QqFWXf7cuAgnEHxBpweaVcPevC2l3KpjYCx3NypQQgaJg=="],
+
+    "diff": ["diff@4.0.2", "", {}, "sha512-58lmxKSA4BNyLz+HHMUzlOEpg09FV+ev6ZMe3vJihgdxzgcwZ8VoEEPmALCZG9LmqfVoNMMKpttIYTVG6uDY7A=="],
+
+    "dunder-proto": ["dunder-proto@1.0.1", "", { "dependencies": { "call-bind-apply-helpers": "^1.0.1", "es-errors": "^1.3.0", "gopd": "^1.2.0" } }, "sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A=="],
+
+    "ee-first": ["ee-first@1.1.1", "", {}, "sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow=="],
+
+    "encodeurl": ["encodeurl@2.0.0", "", {}, "sha512-Q0n9HRi4m6JuGIV1eFlmvJB7ZEVxu93IrMyiMsGC0lrMJMWzRgx6WGquyfQgZVb31vhGgXnfmPNNXmxnOkRBrg=="],
+
+    "es-define-property": ["es-define-property@1.0.1", "", {}, "sha512-e3nRfgfUZ4rNGL232gUgX06QNyyez04KdjFrF+LTRoOXmrOgFKDg4BCdsjW8EnT69eqdYGmRpJwiPVYNrCaW3g=="],
+
+    "es-errors": ["es-errors@1.3.0", "", {}, "sha512-Zf5H2Kxt2xjTvbJvP2ZWLEICxA6j+hAmMzIlypy4xcBg1vKVnx89Wy0GbS+kf5cwCVFFzdCFh2XSCFNULS6csw=="],
+
+    "es-object-atoms": ["es-object-atoms@1.1.1", "", { "dependencies": { "es-errors": "^1.3.0" } }, "sha512-FGgH2h8zKNim9ljj7dankFPcICIK9Cp5bm+c2gQSYePhpaG5+esrLODihIorn+Pe6FGJzWhXQotPv73jTaldXA=="],
+
+    "escape-html": ["escape-html@1.0.3", "", {}, "sha512-NiSupZ4OeuGwr68lGIeym/ksIZMJodUGOSCZ/FSnTxcrekbvqrgdUxlJOMpijaKZVjAJrWrGs/6Jy8OMuyj9ow=="],
+
+    "etag": ["etag@1.8.1", "", {}, "sha512-aIL5Fx7mawVa300al2BnEE4iNvo1qETxLrPI/o05L7z6go7fCw1J6EQmbK4FmJ2AS7kgVF/KEZWufBfdClMcPg=="],
+
+    "eventsource": ["eventsource@3.0.5", "", { "dependencies": { "eventsource-parser": "^3.0.0" } }, "sha512-LT/5J605bx5SNyE+ITBDiM3FxffBiq9un7Vx0EwMDM3vg8sWKx/tO2zC+LMqZ+smAM0F2hblaDZUVZF0te2pSw=="],
+
+    "eventsource-parser": ["eventsource-parser@3.0.0", "", {}, "sha512-T1C0XCUimhxVQzW4zFipdx0SficT651NnkR0ZSH3yQwh+mFMdLfgjABVi4YtMTtaL4s168593DaoaRLMqryavA=="],
+
+    "express": ["express@5.0.1", "", { "dependencies": { "accepts": "^2.0.0", "body-parser": "^2.0.1", "content-disposition": "^1.0.0", "content-type": "~1.0.4", "cookie": "0.7.1", "cookie-signature": "^1.2.1", "debug": "4.3.6", "depd": "2.0.0", "encodeurl": "~2.0.0", "escape-html": "~1.0.3", "etag": "~1.8.1", "finalhandler": "^2.0.0", "fresh": "2.0.0", "http-errors": "2.0.0", "merge-descriptors": "^2.0.0", "methods": "~1.1.2", "mime-types": "^3.0.0", "on-finished": "2.4.1", "once": "1.4.0", "parseurl": "~1.3.3", "proxy-addr": "~2.0.7", "qs": "6.13.0", "range-parser": "~1.2.1", "router": "^2.0.0", "safe-buffer": "5.2.1", "send": "^1.1.0", "serve-static": "^2.1.0", "setprototypeof": "1.2.0", "statuses": "2.0.1", "type-is": "^2.0.0", "utils-merge": "1.0.1", "vary": "~1.1.2" } }, "sha512-ORF7g6qGnD+YtUG9yx4DFoqCShNMmUKiXuT5oWMHiOvt/4WFbHC6yCwQMTSBMno7AqntNCAzzcnnjowRkTL9eQ=="],
+
+    "express-rate-limit": ["express-rate-limit@7.5.0", "", { "peerDependencies": { "express": "^4.11 || 5 || ^5.0.0-beta.1" } }, "sha512-eB5zbQh5h+VenMPM3fh+nw1YExi5nMr6HUCR62ELSP11huvxm/Uir1H1QEyTkk5QX6A58pX6NmaTMceKZ0Eodg=="],
+
+    "finalhandler": ["finalhandler@2.1.0", "", { "dependencies": { "debug": "^4.4.0", "encodeurl": "^2.0.0", "escape-html": "^1.0.3", "on-finished": "^2.4.1", "parseurl": "^1.3.3", "statuses": "^2.0.1" } }, "sha512-/t88Ty3d5JWQbWYgaOGCCYfXRwV1+be02WqYYlL6h0lEiUAMPM8o8qKGO01YIkOHzka2up08wvgYD0mDiI+q3Q=="],
+
+    "forwarded": ["forwarded@0.2.0", "", {}, "sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow=="],
+
+    "fresh": ["fresh@2.0.0", "", {}, "sha512-Rx/WycZ60HOaqLKAi6cHRKKI7zxWbJ31MhntmtwMoaTeF7XFH9hhBp8vITaMidfljRQ6eYWCKkaTK+ykVJHP2A=="],
+
+    "function-bind": ["function-bind@1.1.2", "", {}, "sha512-7XHNxH7qX9xG5mIwxkhumTox/MIRNcOgDrxWsMt2pAr23WHp6MrRlN7FBSFpCpr+oVO0F744iUgR82nJMfG2SA=="],
+
+    "get-intrinsic": ["get-intrinsic@1.3.0", "", { "dependencies": { "call-bind-apply-helpers": "^1.0.2", "es-define-property": "^1.0.1", "es-errors": "^1.3.0", "es-object-atoms": "^1.1.1", "function-bind": "^1.1.2", "get-proto": "^1.0.1", "gopd": "^1.2.0", "has-symbols": "^1.1.0", "hasown": "^2.0.2", "math-intrinsics": "^1.1.0" } }, "sha512-9fSjSaos/fRIVIp+xSJlE6lfwhES7LNtKaCBIamHsjr2na1BiABJPo0mOjjz8GJDURarmCPGqaiVg5mfjb98CQ=="],
+
+    "get-proto": ["get-proto@1.0.1", "", { "dependencies": { "dunder-proto": "^1.0.1", "es-object-atoms": "^1.0.0" } }, "sha512-sTSfBjoXBp89JvIKIefqw7U2CCebsc74kiY6awiGogKtoSGbgjYE/G/+l9sF3MWFPNc9IcoOC4ODfKHfxFmp0g=="],
+
+    "gopd": ["gopd@1.2.0", "", {}, "sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg=="],
+
+    "has-symbols": ["has-symbols@1.1.0", "", {}, "sha512-1cDNdwJ2Jaohmb3sg4OmKaMBwuC48sYni5HUw2DvsC8LjGTLK9h+eb1X6RyuOHe4hT0ULCW68iomhjUoKUqlPQ=="],
+
+    "hasown": ["hasown@2.0.2", "", { "dependencies": { "function-bind": "^1.1.2" } }, "sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ=="],
+
+    "http-errors": ["http-errors@2.0.0", "", { "dependencies": { "depd": "2.0.0", "inherits": "2.0.4", "setprototypeof": "1.2.0", "statuses": "2.0.1", "toidentifier": "1.0.1" } }, "sha512-FtwrG/euBzaEjYeRqOgly7G0qviiXoJWnvEH2Z1plBdXgbyjv34pHTSb9zoeHMyDy33+DWy5Wt9Wo+TURtOYSQ=="],
+
+    "iconv-lite": ["iconv-lite@0.6.3", "", { "dependencies": { "safer-buffer": ">= 2.1.2 < 3.0.0" } }, "sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw=="],
+
+    "inherits": ["inherits@2.0.4", "", {}, "sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ=="],
+
+    "ipaddr.js": ["ipaddr.js@1.9.1", "", {}, "sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g=="],
+
+    "is-promise": ["is-promise@4.0.0", "", {}, "sha512-hvpoI6korhJMnej285dSg6nu1+e6uxs7zG3BYAm5byqDsgJNWwxzM6z6iZiAgQR4TJ30JmBTOwqZUw3WlyH3AQ=="],
+
+    "make-error": ["make-error@1.3.6", "", {}, "sha512-s8UhlNe7vPKomQhC1qFelMokr/Sc3AgNbso3n74mVPA5LTZwkB9NlXf4XPamLxJE8h0gh73rM94xvwRT2CVInw=="],
+
+    "math-intrinsics": ["math-intrinsics@1.1.0", "", {}, "sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g=="],
+
+    "media-typer": ["media-typer@1.1.0", "", {}, "sha512-aisnrDP4GNe06UcKFnV5bfMNPBUw4jsLGaWwWfnH3v02GnBuXX2MCVn5RbrWo0j3pczUilYblq7fQ7Nw2t5XKw=="],
+
+    "merge-descriptors": ["merge-descriptors@2.0.0", "", {}, "sha512-Snk314V5ayFLhp3fkUREub6WtjBfPdCPY1Ln8/8munuLuiYhsABgBVWsozAG+MWMbVEvcdcpbi9R7ww22l9Q3g=="],
+
+    "methods": ["methods@1.1.2", "", {}, "sha512-iclAHeNqNm68zFtnZ0e+1L2yUIdvzNoauKU4WBA3VvH/vPFieF7qfRlwUZU+DA9P9bPXIS90ulxoUoCH23sV2w=="],
+
+    "mime-db": ["mime-db@1.53.0", "", {}, "sha512-oHlN/w+3MQ3rba9rqFr6V/ypF10LSkdwUysQL7GkXoTgIWeV+tcXGA852TBxH+gsh8UWoyhR1hKcoMJTuWflpg=="],
+
+    "mime-types": ["mime-types@3.0.0", "", { "dependencies": { "mime-db": "^1.53.0" } }, "sha512-XqoSHeCGjVClAmoGFG3lVFqQFRIrTVw2OH3axRqAcfaw+gHWIfnASS92AV+Rl/mk0MupgZTRHQOjxY6YVnzK5w=="],
+
+    "ms": ["ms@2.1.2", "", {}, "sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w=="],
+
+    "negotiator": ["negotiator@1.0.0", "", {}, "sha512-8Ofs/AUQh8MaEcrlq5xOX0CQ9ypTF5dl78mjlMNfOK08fzpgTHQRQPBxcPlEtIw0yRpws+Zo/3r+5WRby7u3Gg=="],
+
+    "object-assign": ["object-assign@4.1.1", "", {}, "sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg=="],
+
+    "object-inspect": ["object-inspect@1.13.4", "", {}, "sha512-W67iLl4J2EXEGTbfeHCffrjDfitvLANg0UlX3wFUUSTx92KXRFegMHUVgSqE+wvhAbi4WqjGg9czysTV2Epbew=="],
+
+    "on-finished": ["on-finished@2.4.1", "", { "dependencies": { "ee-first": "1.1.1" } }, "sha512-oVlzkg3ENAhCk2zdv7IJwd/QUD4z2RxRwpkcGY8psCVcCYZNq4wYnVWALHM+brtuJjePWiYF/ClmuDr8Ch5+kg=="],
+
+    "once": ["once@1.4.0", "", { "dependencies": { "wrappy": "1" } }, "sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w=="],
+
+    "parseurl": ["parseurl@1.3.3", "", {}, "sha512-CiyeOxFT/JZyN5m0z9PfXw4SCBJ6Sygz1Dpl0wqjlhDEGGBP1GnsUVEL0p63hoG1fcj3fHynXi9NYO4nWOL+qQ=="],
+
+    "path-to-regexp": ["path-to-regexp@8.2.0", "", {}, "sha512-TdrF7fW9Rphjq4RjrW0Kp2AW0Ahwu9sRGTkS6bvDi0SCwZlEZYmcfDbEsTz8RVk0EHIS/Vd1bv3JhG+1xZuAyQ=="],
+
+    "pkce-challenge": ["pkce-challenge@4.1.0", "", {}, "sha512-ZBmhE1C9LcPoH9XZSdwiPtbPHZROwAnMy+kIFQVrnMCxY4Cudlz3gBOpzilgc0jOgRaiT3sIWfpMomW2ar2orQ=="],
+
+    "proxy-addr": ["proxy-addr@2.0.7", "", { "dependencies": { "forwarded": "0.2.0", "ipaddr.js": "1.9.1" } }, "sha512-llQsMLSUDUPT44jdrU/O37qlnifitDP+ZwrmmZcoSKyLKvtZxpyV0n2/bD/N4tBAAZ/gJEdZU7KMraoK1+XYAg=="],
+
+    "qs": ["qs@6.13.0", "", { "dependencies": { "side-channel": "^1.0.6" } }, "sha512-+38qI9SOr8tfZ4QmJNplMUxqjbe7LKvvZgWdExBOmd+egZTtjLB67Gu0HRX3u/XOq7UU2Nx6nsjvS16Z9uwfpg=="],
+
+    "range-parser": ["range-parser@1.2.1", "", {}, "sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg=="],
+
+    "raw-body": ["raw-body@3.0.0", "", { "dependencies": { "bytes": "3.1.2", "http-errors": "2.0.0", "iconv-lite": "0.6.3", "unpipe": "1.0.0" } }, "sha512-RmkhL8CAyCRPXCE28MMH0z2PNWQBNk2Q09ZdxM9IOOXwxwZbN+qbWaatPkdkWIKL2ZVDImrN/pK5HTRz2PcS4g=="],
+
+    "router": ["router@2.1.0", "", { "dependencies": { "is-promise": "^4.0.0", "parseurl": "^1.3.3", "path-to-regexp": "^8.0.0" } }, "sha512-/m/NSLxeYEgWNtyC+WtNHCF7jbGxOibVWKnn+1Psff4dJGOfoXP+MuC/f2CwSmyiHdOIzYnYFp4W6GxWfekaLA=="],
+
+    "safe-buffer": ["safe-buffer@5.2.1", "", {}, "sha512-rp3So07KcdmmKbGvgaNxQSJr7bGVSVk5S9Eq1F+ppbRo70+YeaDxkw5Dd8NPN+GD6bjnYm2VuPuCXmpuYvmCXQ=="],
+
+    "safer-buffer": ["safer-buffer@2.1.2", "", {}, "sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg=="],
+
+    "send": ["send@1.1.0", "", { "dependencies": { "debug": "^4.3.5", "destroy": "^1.2.0", "encodeurl": "^2.0.0", "escape-html": "^1.0.3", "etag": "^1.8.1", "fresh": "^0.5.2", "http-errors": "^2.0.0", "mime-types": "^2.1.35", "ms": "^2.1.3", "on-finished": "^2.4.1", "range-parser": "^1.2.1", "statuses": "^2.0.1" } }, "sha512-v67WcEouB5GxbTWL/4NeToqcZiAWEq90N888fczVArY8A79J0L4FD7vj5hm3eUMua5EpoQ59wa/oovY6TLvRUA=="],
+
+    "serve-static": ["serve-static@2.1.0", "", { "dependencies": { "encodeurl": "^2.0.0", "escape-html": "^1.0.3", "parseurl": "^1.3.3", "send": "^1.0.0" } }, "sha512-A3We5UfEjG8Z7VkDv6uItWw6HY2bBSBJT1KtVESn6EOoOr2jAxNhxWCLY3jDE2WcuHXByWju74ck3ZgLwL8xmA=="],
+
+    "setprototypeof": ["setprototypeof@1.2.0", "", {}, "sha512-E5LDX7Wrp85Kil5bhZv46j8jOeboKq5JMmYM3gVGdGH8xFpPWXUMsNrlODCrkoxMEeNi/XZIwuRvY4XNwYMJpw=="],
+
+    "side-channel": ["side-channel@1.1.0", "", { "dependencies": { "es-errors": "^1.3.0", "object-inspect": "^1.13.3", "side-channel-list": "^1.0.0", "side-channel-map": "^1.0.1", "side-channel-weakmap": "^1.0.2" } }, "sha512-ZX99e6tRweoUXqR+VBrslhda51Nh5MTQwou5tnUDgbtyM0dBgmhEDtWGP/xbKn6hqfPRHujUNwz5fy/wbbhnpw=="],
+
+    "side-channel-list": ["side-channel-list@1.0.0", "", { "dependencies": { "es-errors": "^1.3.0", "object-inspect": "^1.13.3" } }, "sha512-FCLHtRD/gnpCiCHEiJLOwdmFP+wzCmDEkc9y7NsYxeF4u7Btsn1ZuwgwJGxImImHicJArLP4R0yX4c2KCrMrTA=="],
+
+    "side-channel-map": ["side-channel-map@1.0.1", "", { "dependencies": { "call-bound": "^1.0.2", "es-errors": "^1.3.0", "get-intrinsic": "^1.2.5", "object-inspect": "^1.13.3" } }, "sha512-VCjCNfgMsby3tTdo02nbjtM/ewra6jPHmpThenkTYh8pG9ucZ/1P8So4u4FGBek/BjpOVsDCMoLA/iuBKIFXRA=="],
+
+    "side-channel-weakmap": ["side-channel-weakmap@1.0.2", "", { "dependencies": { "call-bound": "^1.0.2", "es-errors": "^1.3.0", "get-intrinsic": "^1.2.5", "object-inspect": "^1.13.3", "side-channel-map": "^1.0.1" } }, "sha512-WPS/HvHQTYnHisLo9McqBHOJk2FkHO/tlpvldyrnem4aeQp4hai3gythswg6p01oSoTl58rcpiFAjF2br2Ak2A=="],
+
+    "statuses": ["statuses@2.0.1", "", {}, "sha512-RwNA9Z/7PrK06rYLIzFMlaF+l73iwpzsqRIFgbMLbTcLD6cOao82TaWefPXQvB2fOC4AjuYSEndS7N/mTCbkdQ=="],
+
+    "toidentifier": ["toidentifier@1.0.1", "", {}, "sha512-o5sSPKEkg/DIQNmH43V0/uerLrpzVedkUh8tGNvaeXpfpuwjKenlSox/2O/BTlZUtEe+JG7s5YhEz608PlAHRA=="],
+
+    "ts-node": ["ts-node@10.9.2", "", { "dependencies": { "@cspotcode/source-map-support": "^0.8.0", "@tsconfig/node10": "^1.0.7", "@tsconfig/node12": "^1.0.7", "@tsconfig/node14": "^1.0.0", "@tsconfig/node16": "^1.0.2", "acorn": "^8.4.1", "acorn-walk": "^8.1.1", "arg": "^4.1.0", "create-require": "^1.1.0", "diff": "^4.0.1", "make-error": "^1.1.1", "v8-compile-cache-lib": "^3.0.1", "yn": "3.1.1" }, "peerDependencies": { "@swc/core": ">=1.2.50", "@swc/wasm": ">=1.2.50", "@types/node": "*", "typescript": ">=2.7" }, "optionalPeers": ["@swc/core", "@swc/wasm"], "bin": { "ts-node": "dist/bin.js", "ts-script": "dist/bin-script-deprecated.js", "ts-node-cwd": "dist/bin-cwd.js", "ts-node-esm": "dist/bin-esm.js", "ts-node-script": "dist/bin-script.js", "ts-node-transpile-only": "dist/bin-transpile.js" } }, "sha512-f0FFpIdcHgn8zcPSbf1dRevwt047YMnaiJM3u2w2RewrB+fob/zePZcrOyQoLMMO7aBIddLcQIEK5dYjkLnGrQ=="],
+
+    "type-is": ["type-is@2.0.0", "", { "dependencies": { "content-type": "^1.0.5", "media-typer": "^1.1.0", "mime-types": "^3.0.0" } }, "sha512-gd0sGezQYCbWSbkZr75mln4YBidWUN60+devscpLF5mtRDUpiaTvKpBNrdaCvel1NdR2k6vclXybU5fBd2i+nw=="],
+
+    "typescript": ["typescript@5.8.2", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-aJn6wq13/afZp/jT9QZmwEjDqqvSGp1VT5GVg+f/t6/oVyrgXM6BY1h9BRh/O5p3PlUPAe+WuiEZOmb/49RqoQ=="],
+
+    "undici-types": ["undici-types@6.19.8", "", {}, "sha512-ve2KP6f/JnbPBFyobGHuerC9g1FYGn/F8n1LWTwNxCEzd6IfqTwUQcNXgEtmmQ6DlRrC1hrSrBnCZPokRrDHjw=="],
+
+    "unpipe": ["unpipe@1.0.0", "", {}, "sha512-pjy2bYhSsufwWlKwPc+l3cN7+wuJlK6uz0YdJEOlQDbl6jo/YlPi4mb8agUkVC8BF7V8NuzeyPNqRksA3hztKQ=="],
+
+    "utils-merge": ["utils-merge@1.0.1", "", {}, "sha512-pMZTvIkT1d+TFGvDOqodOclx0QWkkgi6Tdoa8gC8ffGAAqz9pzPTZWAybbsHHoED/ztMtkv/VoYTYyShUn81hA=="],
+
+    "uuid": ["uuid@9.0.1", "", { "bin": { "uuid": "dist/bin/uuid" } }, "sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA=="],
+
+    "v8-compile-cache-lib": ["v8-compile-cache-lib@3.0.1", "", {}, "sha512-wa7YjyUGfNZngI/vtK0UHAN+lgDCxBPCylVXGp0zu59Fz5aiGtNXaq3DhIov063MorB+VfufLh3JlF2KdTK3xg=="],
+
+    "vary": ["vary@1.1.2", "", {}, "sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg=="],
+
+    "wrappy": ["wrappy@1.0.2", "", {}, "sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ=="],
+
+    "ws": ["ws@8.18.1", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": ">=5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-RKW2aJZMXeMxVpnZ6bck+RswznaxmzdULiBr6KY7XkTnW8uvt0iT9H5DkHUChXrc+uurzwa0rVI16n/Xzjdz1w=="],
+
+    "yn": ["yn@3.1.1", "", {}, "sha512-Ux4ygGWsu2c7isFWe8Yu1YluJmqVhxqK2cLXNQA5AcC3QfbGNpM7fu0Y8b/z16pXLnFxZYvWhd3fhBY9DLmC6Q=="],
+
+    "zod": ["zod@3.24.2", "", {}, "sha512-lY7CDW43ECgW9u1TcT3IoXHflywfVqDYze4waEz812jR/bZ8FHDsl7pFQoSZTz5N+2NqRXs8GBwnAwo3ZNxqhQ=="],
+
+    "zod-to-json-schema": ["zod-to-json-schema@3.24.3", "", { "peerDependencies": { "zod": "^3.24.1" } }, "sha512-HIAfWdYIt1sssHfYZFCXp4rU1w2r8hVVXYIlmoa0r0gABLs5di3RCqPU5DDROogVz1pAdYBaz7HK5n9pSUNs3A=="],
+
+    "body-parser/debug": ["debug@4.4.0", "", { "dependencies": { "ms": "^2.1.3" } }, "sha512-6WTZ/IxCY/T6BALoZHaE4ctp9xm+Z5kY/pzYaCHRFeyVhojxlrm+46y68HA6hr0TcwEssoxNiDEUJQjfPZ/RYA=="],
+
+    "body-parser/iconv-lite": ["iconv-lite@0.5.2", "", { "dependencies": { "safer-buffer": ">= 2.1.2 < 3" } }, "sha512-kERHXvpSaB4aU3eANwidg79K8FlrN77m8G9V+0vOR3HYaRifrlwMEpT7ZBJqLSEIHnEgJTHcWK82wwLwwKwtag=="],
+
+    "body-parser/qs": ["qs@6.14.0", "", { "dependencies": { "side-channel": "^1.1.0" } }, "sha512-YWWTjgABSKcvs/nWBi9PycY/JiPJqOD4JA6o9Sej2AtvSGarXxKC3OQSk4pAarbdQlKAh5D4FCQkJNkW+GAn3w=="],
+
+    "finalhandler/debug": ["debug@4.4.0", "", { "dependencies": { "ms": "^2.1.3" } }, "sha512-6WTZ/IxCY/T6BALoZHaE4ctp9xm+Z5kY/pzYaCHRFeyVhojxlrm+46y68HA6hr0TcwEssoxNiDEUJQjfPZ/RYA=="],
+
+    "send/fresh": ["fresh@0.5.2", "", {}, "sha512-zJ2mQYM18rEFOudeV4GShTGIQ7RbzA7ozbU9I/XBpm7kqgMywgmylMwXHxZJmkVoYkna9d2pVXVXPdYTP9ej8Q=="],
+
+    "send/mime-types": ["mime-types@2.1.35", "", { "dependencies": { "mime-db": "1.52.0" } }, "sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw=="],
+
+    "send/ms": ["ms@2.1.3", "", {}, "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA=="],
+
+    "body-parser/debug/ms": ["ms@2.1.3", "", {}, "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA=="],
+
+    "finalhandler/debug/ms": ["ms@2.1.3", "", {}, "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA=="],
+
+    "send/mime-types/mime-db": ["mime-db@1.52.0", "", {}, "sha512-sPU4uV7dYlvtWJxwwxHD0PuihVNiE7TyAbQ5SWxDCB9mUYvOgroQOwYQQOKPJ8CIbE+1ETVlOoK1UC2nU3gYvg=="],
+  }
+}
+
+
+
+================================================
+File: src/talk_to_figma_mcp/package.json
+================================================
+{
+  "name": "talk-to-figma-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for Figma integration",
+  "main": "server.ts",
+  "type": "module",
+  "scripts": {
+    "start": "node --loader ts-node/esm server.ts",
+    "build": "tsc",
+    "dev": "node --loader ts-node/esm --watch server.ts"
+  },
+  "keywords": [
+    "figma",
+    "mcp",
+    "cursor",
+    "ai"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.4.0",
+    "uuid": "^9.0.1",
+    "ws": "^8.16.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "@types/uuid": "^9.0.7",
+    "@types/ws": "^8.5.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}
+
+
+================================================
+File: src/talk_to_figma_mcp/server.ts
+================================================
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+import WebSocket from 'ws';
+import { v4 as uuidv4 } from 'uuid';
+
+// Define TypeScript interfaces for Figma responses
+interface FigmaResponse {
+  id: string;
+  result?: any;
+  error?: string;
+}
+
+// Custom logging functions that write to stderr instead of stdout to avoid being captured
+const logger = {
+  info: (message: string) => process.stderr.write(`[INFO] ${message}\n`),
+  debug: (message: string) => process.stderr.write(`[DEBUG] ${message}\n`),
+  warn: (message: string) => process.stderr.write(`[WARN] ${message}\n`),
+  error: (message: string) => process.stderr.write(`[ERROR] ${message}\n`),
+  log: (message: string) => process.stderr.write(`[LOG] ${message}\n`)
+};
+
+// WebSocket connection and request tracking
+let ws: WebSocket | null = null;
+const pendingRequests = new Map<string, {
+  resolve: (value: unknown) => void;
+  reject: (reason: unknown) => void;
+  timeout: NodeJS.Timeout;
+}>();
+
+// Track which channel each client is in
+let currentChannel: string | null = null;
+
+// Create MCP server
+const server = new McpServer({
+  name: "TalkToFigmaMCP",
+  version: "1.0.0",
+});
+
+// Document Info Tool
+server.tool(
+  "get_document_info",
+  "Get detailed information about the current Figma document",
+  {},
+  async () => {
+    try {
+      const result = await sendCommandToFigma('get_document_info');
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result, null, 2)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error getting document info: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+
+// Selection Tool
+server.tool(
+  "get_selection",
+  "Get information about the current selection in Figma",
+  {},
+  async () => {
+    try {
+      const result = await sendCommandToFigma('get_selection');
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result, null, 2)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error getting selection: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+
+// Node Info Tool
+server.tool(
+  "get_node_info",
+  "Get detailed information about a specific node in Figma",
+  {
+    nodeId: z.string().describe("The ID of the node to get information about")
+  },
+  async ({ nodeId }) => {
+    try {
+      const result = await sendCommandToFigma('get_node_info', { nodeId });
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result, null, 2)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error getting node info: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+
+// Create Rectangle Tool
+server.tool(
+  "create_rectangle",
+  "Create a new rectangle in Figma",
+  {
+    x: z.number().describe("X position"),
+    y: z.number().describe("Y position"),
+    width: z.number().describe("Width of the rectangle"),
+    height: z.number().describe("Height of the rectangle"),
+    name: z.string().optional().describe("Optional name for the rectangle"),
+    parentId: z.string().optional().describe("Optional parent node ID to append the rectangle to")
+  },
+  async ({ x, y, width, height, name, parentId }) => {
+    try {
+      const result = await sendCommandToFigma('create_rectangle', {
+        x, y, width, height, name: name || 'Rectangle', parentId
+      });
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Created rectangle "${JSON.stringify(result)}"`
+          }
+        ]
+      }
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error creating rectangle: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+
+// Create Frame Tool
+server.tool(
+  "create_frame",
+  "Create a new frame in Figma",
+  {
+    x: z.number().describe("X position"),
+    y: z.number().describe("Y position"),
+    width: z.number().describe("Width of the frame"),
+    height: z.number().describe("Height of the frame"),
+    name: z.string().optional().describe("Optional name for the frame"),
+    parentId: z.string().optional().describe("Optional parent node ID to append the frame to"),
+    fillColor: z.object({
+      r: z.number().min(0).max(1).describe("Red component (0-1)"),
+      g: z.number().min(0).max(1).describe("Green component (0-1)"),
+      b: z.number().min(0).max(1).describe("Blue component (0-1)"),
+      a: z.number().min(0).max(1).optional().describe("Alpha component (0-1)")
+    }).optional().describe("Fill color in RGBA format"),
+    strokeColor: z.object({
+      r: z.number().min(0).max(1).describe("Red component (0-1)"),
+      g: z.number().min(0).max(1).describe("Green component (0-1)"),
+      b: z.number().min(0).max(1).describe("Blue component (0-1)"),
+      a: z.number().min(0).max(1).optional().describe("Alpha component (0-1)")
+    }).optional().describe("Stroke color in RGBA format"),
+    strokeWeight: z.number().positive().optional().describe("Stroke weight")
+  },
+  async ({ x, y, width, height, name, parentId, fillColor, strokeColor, strokeWeight }) => {
+    try {
+      const result = await sendCommandToFigma('create_frame', {
+        x, y, width, height, name: name || 'Frame', parentId,
+        fillColor: fillColor || { r: 1, g: 1, b: 1, a: 1 },
+        strokeColor: strokeColor,
+        strokeWeight: strokeWeight
+      });
+      const typedResult = result as { name: string, id: string };
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Created frame "${typedResult.name}" with ID: ${typedResult.id}. Use the ID as the parentId to appendChild inside this frame.`
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error creating frame: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+
+// Create Text Tool
+server.tool(
+  "create_text",
+  "Create a new text element in Figma",
+  {
+    x: z.number().describe("X position"),
+    y: z.number().describe("Y position"),
+    text: z.string().describe("Text content"),
+    fontSize: z.number().optional().describe("Font size (default: 14)"),
+    fontWeight: z.number().optional().describe("Font weight (e.g., 400 for Regular, 700 for Bold)"),
+    fontColor: z.object({
+      r: z.number().min(0).max(1).describe("Red component (0-1)"),
+      g: z.number().min(0).max(1).describe("Green component (0-1)"),
+      b: z.number().min(0).max(1).describe("Blue component (0-1)"),
+      a: z.number().min(0).max(1).optional().describe("Alpha component (0-1)")
+    }).optional().describe("Font color in RGBA format"),
+    name: z.string().optional().describe("Optional name for the text node by default following text"),
+    parentId: z.string().optional().describe("Optional parent node ID to append the text to")
+  },
+  async ({ x, y, text, fontSize, fontWeight, fontColor, name, parentId }) => {
+    try {
+      const result = await sendCommandToFigma('create_text', {
+        x, y, text,
+        fontSize: fontSize || 14,
+        fontWeight: fontWeight || 400,
+        fontColor: fontColor || { r: 0, g: 0, b: 0, a: 1 },
+        name: name || 'Text',
+        parentId
+      });
+      const typedResult = result as { name: string, id: string };
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Created text "${typedResult.name}" with ID: ${typedResult.id}`
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error creating text: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+
+// Set Fill Color Tool
+server.tool(
+  "set_fill_color",
+  "Set the fill color of a node in Figma can be TextNode or FrameNode",
+  {
+    nodeId: z.string().describe("The ID of the node to modify"),
+    r: z.number().min(0).max(1).describe("Red component (0-1)"),
+    g: z.number().min(0).max(1).describe("Green component (0-1)"),
+    b: z.number().min(0).max(1).describe("Blue component (0-1)"),
+    a: z.number().min(0).max(1).optional().describe("Alpha component (0-1)")
+  },
+  async ({ nodeId, r, g, b, a }) => {
+    try {
+      const result = await sendCommandToFigma('set_fill_color', {
+        nodeId,
+        color: { r, g, b, a: a || 1 }
+      });
+      const typedResult = result as { name: string };
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Set fill color of node "${typedResult.name}" to RGBA(${r}, ${g}, ${b}, ${a || 1})`
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting fill color: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+
+// Set Stroke Color Tool
+server.tool(
+  "set_stroke_color",
+  "Set the stroke color of a node in Figma",
+  {
+    nodeId: z.string().describe("The ID of the node to modify"),
+    r: z.number().min(0).max(1).describe("Red component (0-1)"),
+    g: z.number().min(0).max(1).describe("Green component (0-1)"),
+    b: z.number().min(0).max(1).describe("Blue component (0-1)"),
+    a: z.number().min(0).max(1).optional().describe("Alpha component (0-1)"),
+    weight: z.number().positive().optional().describe("Stroke weight")
+  },
+  async ({ nodeId, r, g, b, a, weight }) => {
+    try {
+      const result = await sendCommandToFigma('set_stroke_color', {
+        nodeId,
+        color: { r, g, b, a: a || 1 },
+        weight: weight || 1
+      });
+      const typedResult = result as { name: string };
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Set stroke color of node "${typedResult.name}" to RGBA(${r}, ${g}, ${b}, ${a || 1}) with weight ${weight || 1}`
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting stroke color: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+
+// Move Node Tool
+server.tool(
+  "move_node",
+  "Move a node to a new position in Figma",
+  {
+    nodeId: z.string().describe("The ID of the node to move"),
+    x: z.number().describe("New X position"),
+    y: z.number().describe("New Y position")
+  },
+  async ({ nodeId, x, y }) => {
+    try {
+      const result = await sendCommandToFigma('move_node', { nodeId, x, y });
+      const typedResult = result as { name: string };
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Moved node "${typedResult.name}" to position (${x}, ${y})`
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error moving node: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+
+// Resize Node Tool
+server.tool(
+  "resize_node",
+  "Resize a node in Figma",
+  {
+    nodeId: z.string().describe("The ID of the node to resize"),
+    width: z.number().positive().describe("New width"),
+    height: z.number().positive().describe("New height")
+  },
+  async ({ nodeId, width, height }) => {
+    try {
+      const result = await sendCommandToFigma('resize_node', { nodeId, width, height });
+      const typedResult = result as { name: string };
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Resized node "${typedResult.name}" to width ${width} and height ${height}`
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error resizing node: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+
+// Delete Node Tool
+server.tool(
+  "delete_node",
+  "Delete a node from Figma",
+  {
+    nodeId: z.string().describe("The ID of the node to delete")
+  },
+  async ({ nodeId }) => {
+    try {
+      await sendCommandToFigma('delete_node', { nodeId });
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Deleted node with ID: ${nodeId}`
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error deleting node: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+
+// Get Styles Tool
+server.tool(
+  "get_styles",
+  "Get all styles from the current Figma document",
+  {},
+  async () => {
+    try {
+      const result = await sendCommandToFigma('get_styles');
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result, null, 2)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error getting styles: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+
+// Get Local Components Tool
+server.tool(
+  "get_local_components",
+  "Get all local components from the Figma document",
+  {},
+  async () => {
+    try {
+      const result = await sendCommandToFigma('get_local_components');
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result, null, 2)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error getting local components: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+
+// Get Team Components Tool
+// server.tool(
+//   "get_team_components",
+//   "Get all team library components available in Figma",
+//   {},
+//   async () => {
+//     try {
+//       const result = await sendCommandToFigma('get_team_components');
+//       return {
+//         content: [
+//           {
+//             type: "text",
+//             text: JSON.stringify(result, null, 2)
+//           }
+//         ]
+//       };
+//     } catch (error) {
+//       return {
+//         content: [
+//           {
+//             type: "text",
+//             text: `Error getting team components: ${error instanceof Error ? error.message : String(error)}`
+//           }
+//         ]
+//       };
+//     }
+//   }
+// );
+
+// Create Component Instance Tool
+server.tool(
+  "create_component_instance",
+  "Create an instance of a component in Figma",
+  {
+    componentKey: z.string().describe("Key of the component to instantiate"),
+    x: z.number().describe("X position"),
+    y: z.number().describe("Y position")
+  },
+  async ({ componentKey, x, y }) => {
+    try {
+      const result = await sendCommandToFigma('create_component_instance', { componentKey, x, y });
+      const typedResult = result as { name: string, id: string };
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Created component instance "${typedResult.name}" with ID: ${typedResult.id}`
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error creating component instance: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+
+// Export Node as Image Tool
+server.tool(
+  "export_node_as_image",
+  "Export a node as an image from Figma",
+  {
+    nodeId: z.string().describe("The ID of the node to export"),
+    format: z.enum(["PNG", "JPG", "SVG", "PDF"]).optional().describe("Export format"),
+    scale: z.number().positive().optional().describe("Export scale")
+  },
+  async ({ nodeId, format, scale }) => {
+    try {
+      const result = await sendCommandToFigma('export_node_as_image', {
+        nodeId,
+        format: format || 'PNG',
+        scale: scale || 1
+      });
+      const typedResult = result as { imageData: string, mimeType: string };
+
+      return {
+        content: [
+          {
+            type: "image",
+            data: typedResult.imageData,
+            mimeType: typedResult.mimeType || "image/png"
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error exporting node as image: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+
+// Execute Figma Code Tool
+// server.tool(
+//   "execute_figma_code",
+//   "Execute arbitrary JavaScript code in Figma (use with caution)",
+//   {
+//     code: z.string().describe("JavaScript code to execute in Figma")
+//   },
+//   async ({ code }) => {
+//     try {
+//       const result = await sendCommandToFigma('execute_code', { code });
+//       return {
+//         content: [
+//           {
+//             type: "text",
+//             text: `Code executed successfully: ${JSON.stringify(result, null, 2)}`
+//           }
+//         ]
+//       };
+//     } catch (error) {
+//       return {
+//         content: [
+//           {
+//             type: "text",
+//             text: `Error executing code: ${error instanceof Error ? error.message : String(error)}`
+//           }
+//         ]
+//       };
+//     }
+//   }
+// );
+
+// Set Corner Radius Tool
+server.tool(
+  "set_corner_radius",
+  "Set the corner radius of a node in Figma",
+  {
+    nodeId: z.string().describe("The ID of the node to modify"),
+    radius: z.number().min(0).describe("Corner radius value"),
+    corners: z.array(z.boolean()).length(4).optional().describe("Optional array of 4 booleans to specify which corners to round [topLeft, topRight, bottomRight, bottomLeft]")
+  },
+  async ({ nodeId, radius, corners }) => {
+    try {
+      const result = await sendCommandToFigma('set_corner_radius', {
+        nodeId,
+        radius,
+        corners: corners || [true, true, true, true]
+      });
+      const typedResult = result as { name: string };
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Set corner radius of node "${typedResult.name}" to ${radius}px`
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting corner radius: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+
+// Set Text Content Tool
+server.tool(
+  "set_text_content",
+  "Set the text content of an existing text node in Figma",
+  {
+    nodeId: z.string().describe("The ID of the text node to modify"),
+    text: z.string().describe("New text content")
+  },
+  async ({ nodeId, text }) => {
+    try {
+      const result = await sendCommandToFigma('set_text_content', { nodeId, text });
+      const typedResult = result as { name: string };
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Updated text content of node "${typedResult.name}" to "${text}"`
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting text content: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+
+// Define design strategy prompt
+server.prompt(
+  "design_strategy",
+  "Best practices for working with Figma designs",
+  (extra) => {
+    return {
+      messages: [
+        {
+          role: "assistant",
+          content: {
+            type: "text",
+            text: `When working with Figma designs, follow these best practices:
+
+1. Start with Document Structure:
+   - First use get_document_info() to understand the current document
+   - Plan your layout hierarchy before creating elements
+   - Create a main container frame for each screen/section
+
+2. Naming Conventions:
+   - Use descriptive, semantic names for all elements
+   - Follow a consistent naming pattern (e.g., "Login Screen", "Logo Container", "Email Input")
+   - Group related elements with meaningful names
+
+3. Layout Hierarchy:
+   - Create parent frames first, then add child elements
+   - For forms/login screens:
+     * Start with the main screen container frame
+     * Create a logo container at the top
+     * Group input fields in their own containers
+     * Place action buttons (login, submit) after inputs
+     * Add secondary elements (forgot password, signup links) last
+
+4. Input Fields Structure:
+   - Create a container frame for each input field
+   - Include a label text above or inside the input
+   - Group related inputs (e.g., username/password) together
+
+5. Element Creation:
+   - Use create_frame() for containers and input fields
+   - Use create_text() for labels, buttons text, and links
+   - Set appropriate colors and styles:
+     * Use fillColor for backgrounds
+     * Use strokeColor for borders
+     * Set proper fontWeight for different text elements
+
+6. Mofifying existing elements:
+  - use set_text_content() to modify text content.
+
+7. Visual Hierarchy:
+   - Position elements in logical reading order (top to bottom)
+   - Maintain consistent spacing between elements
+   - Use appropriate font sizes for different text types:
+     * Larger for headings/welcome text
+     * Medium for input labels
+     * Standard for button text
+     * Smaller for helper text/links
+
+8. Best Practices:
+   - Verify each creation with get_node_info()
+   - Use parentId to maintain proper hierarchy
+   - Group related elements together in frames
+   - Keep consistent spacing and alignment
+
+Example Login Screen Structure:
+- Login Screen (main frame)
+  - Logo Container (frame)
+    - Logo (image/text)
+  - Welcome Text (text)
+  - Input Container (frame)
+    - Email Input (frame)
+      - Email Label (text)
+      - Email Field (frame)
+    - Password Input (frame)
+      - Password Label (text)
+      - Password Field (frame)
+  - Login Button (frame)
+    - Button Text (text)
+  - Helper Links (frame)
+    - Forgot Password (text)
+    - Don't have account (text)`
+          }
+        }
+      ],
+      description: "Best practices for working with Figma designs"
+    };
+  }
+);
+
+// Define command types and parameters
+type FigmaCommand =
+  | 'get_document_info'
+  | 'get_selection'
+  | 'get_node_info'
+  | 'create_rectangle'
+  | 'create_frame'
+  | 'create_text'
+  | 'set_fill_color'
+  | 'set_stroke_color'
+  | 'move_node'
+  | 'resize_node'
+  | 'delete_node'
+  | 'get_styles'
+  | 'get_local_components'
+  | 'get_team_components'
+  | 'create_component_instance'
+  | 'export_node_as_image'
+  | 'execute_code'
+  | 'join'
+  | 'set_corner_radius'
+  | 'set_text_content';
+
+// Helper function to process Figma node responses
+function processFigmaNodeResponse(result: unknown): any {
+  if (!result || typeof result !== 'object') {
+    return result;
+  }
+
+  // Check if this looks like a node response
+  const resultObj = result as Record<string, unknown>;
+  if ('id' in resultObj && typeof resultObj.id === 'string') {
+    // It appears to be a node response, log the details
+    logger.info(`Processed Figma node: ${resultObj.name || 'Unknown'} (ID: ${resultObj.id})`);
+
+    if ('x' in resultObj && 'y' in resultObj) {
+      logger.debug(`Node position: (${resultObj.x}, ${resultObj.y})`);
+    }
+
+    if ('width' in resultObj && 'height' in resultObj) {
+      logger.debug(`Node dimensions: ${resultObj.width}×${resultObj.height}`);
+    }
+  }
+
+  return result;
+}
+
+// Simple function to connect to Figma WebSocket server
+function connectToFigma(port: number = 3055) {
+  // If already connected, do nothing
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    logger.info('Already connected to Figma');
+    return;
+  }
+
+  logger.info(`Connecting to Figma socket server on port ${port}...`);
+  ws = new WebSocket(`ws://localhost:${port}`);
+
+  ws.on('open', () => {
+    logger.info('Connected to Figma socket server');
+    // Reset channel on new connection
+    currentChannel = null;
+  });
+
+  ws.on('message', (data: any) => {
+    try {
+      const json = JSON.parse(data) as { message: FigmaResponse };
+      const myResponse = json.message;
+      logger.debug(`Received message: ${JSON.stringify(myResponse)}`);
+      logger.log('myResponse' + JSON.stringify(myResponse));
+
+      // Handle response to a request
+      if (myResponse.id && pendingRequests.has(myResponse.id) && myResponse.result) {
+        const request = pendingRequests.get(myResponse.id)!;
+        clearTimeout(request.timeout);
+
+        if (myResponse.error) {
+          logger.error(`Error from Figma: ${myResponse.error}`);
+          request.reject(new Error(myResponse.error));
+        } else {
+          if (myResponse.result) {
+            request.resolve(myResponse.result);
+          }
+        }
+
+        pendingRequests.delete(myResponse.id);
+      } else {
+        // Handle broadcast messages or events
+        logger.info(`Received broadcast message: ${JSON.stringify(myResponse)}`);
+      }
+    } catch (error) {
+      logger.error(`Error parsing message: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  });
+
+  ws.on('error', (error) => {
+    logger.error(`Socket error: ${error}`);
+  });
+
+  ws.on('close', () => {
+    logger.info('Disconnected from Figma socket server');
+    ws = null;
+
+    // Reject all pending requests
+    for (const [id, request] of pendingRequests.entries()) {
+      clearTimeout(request.timeout);
+      request.reject(new Error('Connection closed'));
+      pendingRequests.delete(id);
+    }
+
+    // Attempt to reconnect
+    logger.info('Attempting to reconnect in 2 seconds...');
+    setTimeout(() => connectToFigma(port), 2000);
+  });
+}
+
+// Function to join a channel
+async function joinChannel(channelName: string): Promise<void> {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    throw new Error('Not connected to Figma');
+  }
+
+  try {
+    await sendCommandToFigma('join', { channel: channelName });
+    currentChannel = channelName;
+    logger.info(`Joined channel: ${channelName}`);
+  } catch (error) {
+    logger.error(`Failed to join channel: ${error instanceof Error ? error.message : String(error)}`);
+    throw error;
+  }
+}
+
+// Function to send commands to Figma
+function sendCommandToFigma(command: FigmaCommand, params: unknown = {}): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    // If not connected, try to connect first
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      connectToFigma();
+      reject(new Error('Not connected to Figma. Attempting to connect...'));
+      return;
+    }
+
+    // Check if we need a channel for this command
+    const requiresChannel = command !== 'join';
+    if (requiresChannel && !currentChannel) {
+      reject(new Error('Must join a channel before sending commands'));
+      return;
+    }
+
+    const id = uuidv4();
+    const request = {
+      id,
+      type: command === 'join' ? 'join' : 'message',
+      ...(command === 'join' ? { channel: (params as any).channel } : { channel: currentChannel }),
+      message: {
+        id,
+        command,
+        params: {
+          ...(params as any),
+        }
+      }
+    };
+
+    // Set timeout for request
+    const timeout = setTimeout(() => {
+      if (pendingRequests.has(id)) {
+        pendingRequests.delete(id);
+        logger.error(`Request ${id} to Figma timed out after 30 seconds`);
+        reject(new Error('Request to Figma timed out'));
+      }
+    }, 30000); // 30 second timeout
+
+    // Store the promise callbacks to resolve/reject later
+    pendingRequests.set(id, { resolve, reject, timeout });
+
+    // Send the request
+    logger.info(`Sending command to Figma: ${command}`);
+    logger.debug(`Request details: ${JSON.stringify(request)}`);
+    ws.send(JSON.stringify(request));
+  });
+}
+
+// Update the join_channel tool
+server.tool(
+  "join_channel",
+  "Join a specific channel to communicate with Figma",
+  {
+    channel: z.string().describe("The name of the channel to join").default("")
+  },
+  async ({ channel }) => {
+    try {
+      if (!channel) {
+        // If no channel provided, ask the user for input
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Please provide a channel name to join:"
+            }
+          ],
+          followUp: {
+            tool: "join_channel",
+            description: "Join the specified channel"
+          }
+        };
+      }
+
+      await joinChannel(channel);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Successfully joined channel: ${channel}`
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error joining channel: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+
+// Start the server
+async function main() {
+  try {
+    // Try to connect to Figma socket server
+    connectToFigma();
+  } catch (error) {
+    logger.warn(`Could not connect to Figma initially: ${error instanceof Error ? error.message : String(error)}`);
+    logger.warn('Will try to connect when the first command is sent');
+  }
+
+  // Start the MCP server with stdio transport
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  logger.info('FigmaMCP server running on stdio');
+}
+
+// Run the server
+main().catch(error => {
+  logger.error(`Error starting FigmaMCP server: ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(1);
+});
+
+
+================================================
+File: src/talk_to_figma_mcp/tsconfig.json
+================================================
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "outDir": "dist",
+    "rootDir": ".",
+    "declaration": true,
+    "experimentalDecorators": false,
+    "emitDecoratorMetadata": false
+  },
+  "include": ["./**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
+
+

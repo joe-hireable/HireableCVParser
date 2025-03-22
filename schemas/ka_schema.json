@@ -1,0 +1,97 @@
+{
+  "type": "object",
+  "strict": true,
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "success",
+        "error",
+        "partial"
+      ],
+      "description": "Processing status of the request (success, error, or partial completion)"
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Error code identifier for programmatic handling"
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable error description"
+          },
+          "field": {
+            "type": "string",
+            "description": "Specific field that triggered the error"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning"
+            ],
+            "description": "Error severity level (critical error or advisory warning)"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "field",
+          "severity"
+        ]
+      },
+      "nullable": true,
+      "description": "List of errors encountered during processing, null if no errors"
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "achievements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Quantifiable accomplishments formatted with STAR method and action verbs"
+        },
+        "feedback": {
+          "type": "object",
+          "properties": {
+            "strengths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Effective aspects of the achievements section"
+            },
+            "areas_to_improve": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Suggestions to enhance achievements impact and relevance"
+            }
+          },
+          "required": [
+            "strengths",
+            "areas_to_improve"
+          ],
+          "description": "Evaluation of achievements quality and relevance to target role"
+        }
+      },
+      "required": [
+        "achievements",
+        "feedback"
+      ],
+      "description": "Container for optimized achievements and evaluation feedback"
+    }
+  },
+  "required": [
+    "status",
+    "errors",
+    "data"
+  ]
+}
