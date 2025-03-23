@@ -121,9 +121,11 @@ You must extract structured information from the CV/résumé document in the `<c
 </instructions>
 
 <cv>
-${cv}
+{cv_content}
 </cv>
 
 <jd>
-${jd}
+{jd_content}
 </jd>
+
+{few_shot_examples}

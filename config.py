@@ -5,12 +5,15 @@ GCS_BUCKET_NAME = "gcp-parser"
 CV_FOLDER = "cvs"
 JD_FOLDER = "jds"
 
+# Authentication settings
+SERVICE_ACCOUNT_KEY_PATH = "keys/service-account-key.json"  # Path relative to function root
+
 # Project settings
 PROJECT_ID = "hireable-places"
 LOCATION = "europe-west9"  # London region
 
 # Gemini API settings
-MODEL_NAME = "gemini-2.0-flash-lite"
+MODEL_NAME = "gemini-2.0-flash"
 VERTEX_AI_ENABLED = True  # Flag to switch between direct Gemini API and Vertex AI
 
 # File paths

@@ -2,6 +2,8 @@ import logging
 from google.cloud import storage
 from typing import Optional
 import os
+from google.auth import default
+from google.auth.exceptions import DefaultCredentialsError
 
 logger = logging.getLogger(__name__)
 
@@ -14,12 +16,29 @@ class StorageClient:
         
         Args:
             bucket_name: Name of the GCS bucket to use
+            
+        Raises:
+            DefaultCredentialsError: If no credentials are found
         """
         self.bucket_name = bucket_name
-        self.storage_client = storage.Client()
-        self.bucket = self.storage_client.bucket(bucket_name)
         
-        logger.info(f"Initialized Storage client for bucket {bucket_name}")
+        try:
+            # Get default credentials
+            credentials, project = default()
+            if not credentials:
+                raise DefaultCredentialsError("No credentials found")
+            
+            # Initialize client with explicit credentials
+            self.storage_client = storage.Client(credentials=credentials)
+            self.bucket = self.storage_client.bucket(bucket_name)
+            
+            logger.info(f"Initialized Storage client for bucket {bucket_name} using ADC")
+        except DefaultCredentialsError as e:
+            logger.error("Failed to initialize Storage client: No credentials found")
+            raise
+        except Exception as e:
+            logger.error(f"Failed to initialize Storage client: {str(e)}")
+            raise
     
     def upload_file(self, content: str, folder: str) -> Optional[str]:
         """

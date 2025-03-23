@@ -2,7 +2,7 @@
 You must optimize a specific work experience entry from the CV/résumé document provided in the `cv` section of this prompt, with reference to the job description in the `jd` section.
 
 <section>
-<${section}>
+{section}
 </section>
 
 Your task is to enhance and structure this specific work experience entry, returning a valid JSON object that adheres to the response_schema. Focus on highlighting relevant achievements and responsibilities for the target role.
@@ -86,9 +86,11 @@ If the experience entry cannot be properly processed:
 </instructions>
 
 <cv>
-<${cv}>
+{cv_content}
 </cv>
 
 <jd>
-<${jd}>
+{jd_content}
 </jd>
+
+{few_shot_examples}

@@ -6,7 +6,7 @@
       "type": "string",
       "enum": [
         "success",
-        "error",
+        "errors",
         "partial"
       ],
       "description": "Processing status of the request (success, error, or partial completion)"

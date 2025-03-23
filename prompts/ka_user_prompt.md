@@ -2,7 +2,7 @@
 You must optimize the achievements section of a CV/résumé document provided in the `cv` section of this prompt, with reference to the job description in the `jd` section.
 
 <section>
-<${section}>
+{section}
 </section>
 
 Your task is to extract and enhance key achievements, returning a valid JSON object that adheres to the response_schema. Focus on highlighting accomplishments that demonstrate value relevant to the target role.
@@ -61,9 +61,11 @@ If achievements cannot be properly extracted or processed:
 </instructions>
 
 <cv>
-<${cv}>
+{cv_content}
 </cv>
 
 <jd>
-<${jd}>
+{jd_content}
 </jd>
+
+{few_shot_examples}

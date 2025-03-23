@@ -7,7 +7,7 @@
       "description": "Overall processing status: success, error, or partial",
       "enum": [
         "success",
-        "error",
+        "errors",
         "partial"
       ]
     },

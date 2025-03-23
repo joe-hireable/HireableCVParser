@@ -76,7 +76,7 @@ def cv_optimizer(request):
         headers = {
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'POST',
-            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
             'Access-Control-Max-Age': '3600'
         }
         return ('', 204, headers)
@@ -105,10 +105,19 @@ def cv_optimizer(request):
                 {"error": f"Invalid task. Allowed values: {', '.join(config.ALLOWED_TASKS)}"}
             ), 400, headers)
         
-        # Initialize clients
-        storage_client = StorageClient(config.GCS_BUCKET_NAME)
-        doc_processor = DocumentProcessor()
-        gemini_client = GeminiClient(config.PROJECT_ID, config.LOCATION)
+        # Initialize clients with service account key
+        storage_client = StorageClient(
+            config.GCS_BUCKET_NAME, 
+            key_path=config.SERVICE_ACCOUNT_KEY_PATH
+        )
+        doc_processor = DocumentProcessor(
+            key_path=config.SERVICE_ACCOUNT_KEY_PATH
+        )
+        gemini_client = GeminiClient(
+            config.PROJECT_ID, 
+            config.LOCATION,
+            key_path=config.SERVICE_ACCOUNT_KEY_PATH
+        )
         
         # Process documents
         cv_content = None
@@ -137,7 +146,9 @@ def cv_optimizer(request):
         user_prompt_with_vars = user_prompt.format(
             section=section or "",
             cv_content=cv_content or "",
+            cv=cv_content or "",
             jd_content=jd_content or "",
+            jd=jd_content or "",
             few_shot_examples=few_shot_examples
         )
         

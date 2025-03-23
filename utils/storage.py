@@ -2,39 +2,42 @@ import logging
 from google.cloud import storage
 from typing import Optional
 import os
-from google.auth import default
-from google.auth.exceptions import DefaultCredentialsError
+from google.oauth2 import service_account
 
 logger = logging.getLogger(__name__)
 
 class StorageClient:
     """Client for interacting with Google Cloud Storage."""
     
-    def __init__(self, bucket_name: str):
+    def __init__(self, bucket_name: str, key_path: Optional[str] = None):
         """
         Initialize the Storage client.
         
         Args:
             bucket_name: Name of the GCS bucket to use
+            key_path: Path to service account JSON key file (optional)
             
         Raises:
-            DefaultCredentialsError: If no credentials are found
+            FileNotFoundError: If the key file doesn't exist
+            ValueError: If the key file is invalid
         """
         self.bucket_name = bucket_name
         
         try:
-            # Get default credentials
-            credentials, project = default()
-            if not credentials:
-                raise DefaultCredentialsError("No credentials found")
+            if key_path and os.path.exists(key_path):
+                # Use service account key file
+                credentials = service_account.Credentials.from_service_account_file(key_path)
+                self.storage_client = storage.Client(credentials=credentials)
+                logger.info(f"Initialized Storage client for bucket {bucket_name} using service account key")
+            else:
+                # Fall back to ADC if no key provided or file doesn't exist
+                self.storage_client = storage.Client()
+                logger.info(f"Initialized Storage client for bucket {bucket_name} using ADC")
                 
-            # Initialize client with explicit credentials
-            self.storage_client = storage.Client(credentials=credentials)
             self.bucket = self.storage_client.bucket(bucket_name)
             
-            logger.info(f"Initialized Storage client for bucket {bucket_name} using ADC")
-        except DefaultCredentialsError as e:
-            logger.error("Failed to initialize Storage client: No credentials found")
+        except FileNotFoundError:
+            logger.error(f"Service account key file not found: {key_path}")
             raise
         except Exception as e:
             logger.error(f"Failed to initialize Storage client: {str(e)}")

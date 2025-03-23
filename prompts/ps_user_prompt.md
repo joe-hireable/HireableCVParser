@@ -2,7 +2,7 @@
 You must optimize the profile statement section of a CV/résumé document provided in `<section></section>` of this prompt, with reference to the job description in the `jd` section if one is provided. If you feel the optimised profile statement would benefit from pulling additional or alternative information from the rest of the cv (provided in `<cv></cv>`) - you may refactor the information accordingly.
 
 <section>
-<${section}>
+{section}
 </section>
 
 Your task is to critically assess and optimise the profile statement provided in `<section></section>`, returning a valid JSON object that adheres to the response_schema. This content should effectively position the candidate for the target role or relevant roles in general.
@@ -58,9 +58,11 @@ If the profile statement cannot be properly created:
 </instructions>
 
 <cv>
-<${cv}>
+{cv_content}
 </cv>
 
 <jd>
-<${jd}>
+{jd_content}
 </jd>
+
+{few_shot_examples}

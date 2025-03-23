@@ -87,18 +87,22 @@ class DocumentProcessor:
         """
         try:
             import io
-            from pypdf import PdfReader
+            import fitz  # PyMuPDF
             
             # Create a file-like object from the binary content
             file_stream = io.BytesIO(file_content)
             
-            # Create a PDF reader object
-            reader = PdfReader(file_stream)
+            # Open the PDF with PyMuPDF
+            doc = fitz.open(stream=file_stream, filetype="pdf")
             
             # Extract text from all pages
             text = ""
-            for page in reader.pages:
-                text += page.extract_text() + "\n"
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                text += page.get_text() + "\n"
+            
+            # Close the document
+            doc.close()
             
             logger.info(f"Successfully extracted {len(text)} characters from PDF")
             return text
