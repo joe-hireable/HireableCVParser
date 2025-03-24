@@ -212,11 +212,31 @@ class RoleResponseSchema(BaseResponseSchema):
     """Schema for work experience role optimization"""
     data: RoleDataModel = Field(description="Role optimization data")
 
+# Scoring Schema Models
+class ScoresModel(BaseModel):
+    overall: float = Field(description="Overall weighted score (0-100)", ge=0, le=100)
+    relevance: float = Field(description="Match with job requirements (0-100)", ge=0, le=100)
+    skillsAlignment: float = Field(description="Alignment of skills with requirements (0-100)", ge=0, le=100)
+    experienceMatch: float = Field(description="Match of experience with requirements (0-100)", ge=0, le=100)
+    achievementFocus: float = Field(description="Focus on achievements and results (0-100)", ge=0, le=100)
+    presentation: float = Field(description="CV formatting and readability (0-100)", ge=0, le=100)
+    atsCompatibility: float = Field(description="Likely success with ATS systems (0-100)", ge=0, le=100)
+
+class ScoringDataModel(BaseModel):
+    scores: ScoresModel = Field(description="Numerical scores across dimensions")
+    feedback: FeedbackModel = Field(description="Analysis feedback")
+    matchAssessment: Optional[str] = Field(description="Overall assessment of candidate fit or CV quality", max_length=500)
+
+class ScoringResponseSchema(BaseResponseSchema):
+    """Schema for CV scoring against job description"""
+    data: ScoringDataModel = Field(description="Scoring assessment data")
+
 # Schema registry mapping task names to their corresponding Pydantic models
 SCHEMA_REGISTRY = {
     'parsing': ParsingResponseSchema,
     'role': RoleResponseSchema,
     'cs': CSResponseSchema,
     'ka': KAResponseSchema,
-    'ps': PSResponseSchema
+    'ps': PSResponseSchema,
+    'scoring': ScoringResponseSchema
 } 
