@@ -2,43 +2,30 @@ import logging
 from google.cloud import storage
 from typing import Optional
 import os
-from google.oauth2 import service_account
 
 logger = logging.getLogger(__name__)
 
 class StorageClient:
     """Client for interacting with Google Cloud Storage."""
     
-    def __init__(self, bucket_name: str, key_path: Optional[str] = None):
+    def __init__(self, bucket_name: str):
         """
         Initialize the Storage client.
         
         Args:
             bucket_name: Name of the GCS bucket to use
-            key_path: Path to service account JSON key file (optional)
             
         Raises:
-            FileNotFoundError: If the key file doesn't exist
-            ValueError: If the key file is invalid
+            Exception: If client initialization fails
         """
         self.bucket_name = bucket_name
         
         try:
-            if key_path and os.path.exists(key_path):
-                # Use service account key file
-                credentials = service_account.Credentials.from_service_account_file(key_path)
-                self.storage_client = storage.Client(credentials=credentials)
-                logger.info(f"Initialized Storage client for bucket {bucket_name} using service account key")
-            else:
-                # Fall back to ADC if no key provided or file doesn't exist
-                self.storage_client = storage.Client()
-                logger.info(f"Initialized Storage client for bucket {bucket_name} using ADC")
-                
+            # Initialize client with ADC
+            self.storage_client = storage.Client()
             self.bucket = self.storage_client.bucket(bucket_name)
+            logger.info(f"Initialized Storage client for bucket {bucket_name} using ADC")
             
-        except FileNotFoundError:
-            logger.error(f"Service account key file not found: {key_path}")
-            raise
         except Exception as e:
             logger.error(f"Failed to initialize Storage client: {str(e)}")
             raise
