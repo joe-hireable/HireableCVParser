@@ -3,6 +3,7 @@ import tempfile
 import logging
 import io
 import hashlib
+import datetime
 from typing import Tuple, Optional
 
 import requests
@@ -25,6 +26,8 @@ class DocumentProcessor:
         # Initialize Firestore client
         self.db = firestore.Client()
         self.tracer = trace.get_tracer(__name__)
+        # Cache configuration
+        self.cache_ttl_days = 30  # Cache documents for 30 days
         
     def _get_cache_key(self, url: str) -> str:
         """
@@ -89,7 +92,8 @@ class DocumentProcessor:
                         'content': text_content,
                         'url': url,
                         'content_type': content_type,
-                        'timestamp': firestore.SERVER_TIMESTAMP
+                        'timestamp': firestore.SERVER_TIMESTAMP,
+                        'expiration': firestore.SERVER_TIMESTAMP + datetime.timedelta(days=self.cache_ttl_days)
                     })
                     logger.info(f"Cached document content for {url}")
                     span.set_status(trace.Status(trace.StatusCode.OK))

@@ -8,6 +8,7 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.gcp_trace import GCPTraceExporter
+from urllib.parse import urlparse
 
 from utils.storage import StorageClient
 from utils.document_processor import DocumentProcessor
@@ -62,18 +63,47 @@ def initialize_clients():
 
 def validate_url(url: str) -> None:
     """
-    Validate URL format.
+    Validate URL format and domain to prevent SSRF attacks.
     
     Args:
         url: URL string to validate
         
     Raises:
-        ValueError: If URL format is invalid
+        ValueError: If URL format is invalid or domain is not in allowlist
     """
     if not url:
         raise ValueError("URL cannot be empty")
-    if not (url.startswith('http') or url.startswith('gs://')):
-        raise ValueError(f"Invalid URL format: {url}. URL must start with 'http' or 'gs://'")
+    
+    # Allow GCS URLs
+    if url.startswith('gs://'):
+        return
+        
+    # Parse URL and validate domain
+    try:
+        parsed_url = urlparse(url)
+        if not parsed_url.scheme in ['http', 'https']:
+            raise ValueError(f"Invalid URL scheme: {url}. Only HTTP/HTTPS URLs are allowed")
+            
+        # List of allowed domains (add your trusted domains here)
+        allowed_domains = [
+            'storage.googleapis.com',  # Google Cloud Storage
+            'example.com',             # Example domain
+            'githubusercontent.com',   # GitHub content
+            'raw.githubusercontent.com', # GitHub raw content
+            'bubble.io',               # Bubble.io main domain
+            'bubble-io.s3.amazonaws.com',  # Bubble.io S3 storage
+            'bubble-io-files.s3.amazonaws.com',  # Bubble.io file storage
+            'bubble-io-files-prod.s3.amazonaws.com',  # Bubble.io production file storage
+            'bubble-io-files-staging.s3.amazonaws.com'  # Bubble.io staging file storage
+        ]
+        
+        # Check if the domain is in the allowlist
+        domain = parsed_url.netloc.lower()
+        if not any(domain.endswith(allowed_domain) for allowed_domain in allowed_domains):
+            raise ValueError(f"Untrusted domain: {domain}. Only URLs from allowed domains are permitted")
+            
+    except Exception as e:
+        raise ValueError(f"Invalid URL format: {url}. Error: {str(e)}")
 
 def load_resource_file(task: str, resource_type: str) -> str:
     """
