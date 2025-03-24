@@ -72,7 +72,7 @@ class DocumentProcessor:
             Tuple of (file_content, content_type) or (None, None) if download fails
         """
         try:
-            response = requests.get(url, timeout=30)
+            response = requests.get(url)
             response.raise_for_status()
             
             content_type = response.headers.get('content-type')

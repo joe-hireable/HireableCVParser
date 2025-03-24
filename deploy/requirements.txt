@@ -1,8 +1,0 @@
-functions-framework==3.4.0
-google-cloud-storage==2.13.0
-vertexai==0.0.1
-google-cloud-aiplatform==1.36.3
-google-generativeai==0.3.1
-requests==2.31.0
-PyPDF2==3.0.1
-python-docx==1.0.0 

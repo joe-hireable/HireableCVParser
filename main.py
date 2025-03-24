@@ -1,14 +1,9 @@
-"""
-CV Optimizer Cloud Function
---------------------------
-This function orchestrates API calls to Gemini 2.0 Flash Lite for CV optimization tasks.
-"""
-
 import os
 import json
 import logging
 import functions_framework
 from typing import Dict, Any, Optional, Tuple
+import uuid
 
 from utils.storage import StorageClient
 from utils.document_processor import DocumentProcessor
@@ -48,126 +43,90 @@ def load_resource_file(task: str, resource_type: str) -> str:
 
 def fetch_resources(task: str) -> Tuple[str, str, str, Dict[str, Any]]:
     """
-    Fetch all necessary resources for a given task.
+    Fetch all resources needed for a specific task.
     
     Args:
-        task: Task name
+        task: Task identifier (parsing, ps, cs, etc.)
         
     Returns:
-        Tuple of (system_prompt, user_prompt, few_shot_examples, schema)
+        Tuple of (system prompt, user prompt, few shot examples, schema)
     """
     system_prompt = load_resource_file(task, 'system_prompt')
     user_prompt = load_resource_file(task, 'user_prompt')
     few_shot_examples = load_resource_file(task, 'examples')
     
-    # Load and parse schema
-    schema_content = load_resource_file(task, 'schema')
-    schema = json.loads(schema_content)
+    schema_text = load_resource_file(task, 'schema')
+    schema = json.loads(schema_text)
     
     return system_prompt, user_prompt, few_shot_examples, schema
 
 @functions_framework.http
 def cv_optimizer(request):
     """
-    Cloud Function entry point for CV optimization tasks.
+    Cloud Function to optimize CVs using Gemini API.
+    
+    Args:
+        request: HTTP request object
+        
+    Returns:
+        HTTP response with JSON result
     """
-    # Set CORS headers for preflight request
-    if request.method == 'OPTIONS':
-        headers = {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'POST',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-            'Access-Control-Max-Age': '3600'
-        }
-        return ('', 204, headers)
-
-    # Set CORS headers for main request
-    headers = {'Access-Control-Allow-Origin': '*'}
+    if request.method == 'GET' and request.path == '/health':
+        return json.dumps({"status": "healthy"}), 200
+    
+    if request.method != 'POST':
+        return json.dumps({"error": "Only POST method is supported"}), 405
     
     try:
-        # Parse request data
-        request_json = request.get_json(silent=True)
-        if not request_json:
-            return (json.dumps({"error": "No JSON data provided"}), 400, headers)
+        request_json = request.get_json()
+        request_id = request.headers.get('X-Request-ID', f"req-{uuid.uuid4()}")
+        logger.info(f"Processing request {request_id}")
         
         # Extract parameters
         cv_url = request_json.get('cv_url')
         jd_url = request_json.get('jd_url')
-        task = request_json.get('task')
-        section = request_json.get('section')
+        task = request_json.get('task', 'parsing')  # Default to parsing if not specified
+        section = request_json.get('section', '')
         
-        # Validate task parameter
-        if not task:
-            return (json.dumps({"error": "Missing required 'task' parameter"}), 400, headers)
-        
-        if task not in config.ALLOWED_TASKS:
-            return (json.dumps(
-                {"error": f"Invalid task. Allowed values: {', '.join(config.ALLOWED_TASKS)}"}
-            ), 400, headers)
-        
-        # Initialize clients with service account key
-        storage_client = StorageClient(
-            config.GCS_BUCKET_NAME, 
-            key_path=config.SERVICE_ACCOUNT_KEY_PATH
-        )
-        doc_processor = DocumentProcessor(
-            key_path=config.SERVICE_ACCOUNT_KEY_PATH
-        )
+        # Initialize clients
+        doc_processor = DocumentProcessor()
+        storage_client = StorageClient(config.GCS_BUCKET_NAME)
         gemini_client = GeminiClient(
-            config.PROJECT_ID, 
-            config.LOCATION,
+            project_id=config.PROJECT_ID,
+            location=config.LOCATION,
             key_path=config.SERVICE_ACCOUNT_KEY_PATH
         )
         
-        # Process documents
-        cv_content = None
-        jd_content = None
-        
-        if cv_url:
-            try:
-                cv_content = doc_processor.download_and_process(cv_url)
-                if cv_content:
-                    storage_client.upload_file(cv_content, config.CV_FOLDER)
-            except Exception as e:
-                logger.error(f"Error processing CV: {e}")
-        
-        if jd_url:
-            try:
-                jd_content = doc_processor.download_and_process(jd_url)
-                if jd_content:
-                    storage_client.upload_file(jd_content, config.JD_FOLDER)
-            except Exception as e:
-                logger.error(f"Error processing JD: {e}")
+        # Process documents with timeout
+        try:
+            cv_content = doc_processor.download_and_process(cv_url)
+            jd_content = doc_processor.download_and_process(jd_url) if jd_url else ""
+        except TimeoutError:
+            return json.dumps({"error": "Document processing timed out"}), 504
         
         # Fetch resources
-        system_prompt, user_prompt, few_shot_examples, schema = fetch_resources(task)
+        system_prompt, user_prompt_template, few_shot_examples, schema = fetch_resources(task)
         
-        # Prepare prompt with variables
-        user_prompt_with_vars = user_prompt.format(
-            section=section or "",
-            cv_content=cv_content or "",
-            cv=cv_content or "",
-            jd_content=jd_content or "",
-            jd=jd_content or "",
+        # Format user prompt
+        user_prompt = user_prompt_template.format(
+            section=section,
+            cv_content=cv_content,
+            jd_content=jd_content,
             few_shot_examples=few_shot_examples
         )
         
-        # Call Gemini model
-        response = gemini_client.generate_text(
-            prompt=user_prompt_with_vars,
+        # Generate content using Gemini
+        response = gemini_client.generate_content(
+            prompt=user_prompt,
             schema=schema,
-            system_instruction=system_prompt
+            system_prompt=system_prompt
         )
         
-        # Process response
-        if isinstance(response, dict) and response.get("status") == "success":
-            # Strip status and errors, return only data
-            result = response.get("data", {})
-            return (json.dumps(result), 200, headers)
+        if response["status"] == "success":
+            return json.dumps(response["data"]), 200
         else:
-            # Return the full response
-            return (json.dumps(response), 200, headers)
-        
+            return json.dumps({"error": response["error"]}), 500
+            
     except Exception as e:
-        logger.error(f"Error processing request: {e}")
-        return (json.dumps({"error": str(e)}), 500, headers) 
+        logger.exception(f"Error in CV optimizer: {e}")
+        return json.dumps({"error": str(e)}), 500 
