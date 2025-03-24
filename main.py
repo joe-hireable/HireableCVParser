@@ -65,6 +65,18 @@ def initialize_clients():
     if not doc_processor:
         doc_processor = DocumentProcessor()
 
+def cleanup_clients():
+    """Clean up global client instances."""
+    global storage_client, gemini_client, doc_processor
+    
+    if doc_processor:
+        doc_processor.cleanup()
+        doc_processor = None
+    if storage_client:
+        storage_client = None
+    if gemini_client:
+        gemini_client = None
+
 def validate_url(url: str) -> None:
     """
     Validate URL format and domain to prevent SSRF attacks.
@@ -88,22 +100,9 @@ def validate_url(url: str) -> None:
         if not parsed_url.scheme in ['http', 'https']:
             raise ValueError(f"Invalid URL scheme: {url}. Only HTTP/HTTPS URLs are allowed")
             
-        # List of allowed domains (add your trusted domains here)
-        allowed_domains = [
-            'storage.googleapis.com',  # Google Cloud Storage
-            'example.com',             # Example domain
-            'githubusercontent.com',   # GitHub content
-            'raw.githubusercontent.com', # GitHub raw content
-            'bubble.io',               # Bubble.io main domain
-            'bubble-io.s3.amazonaws.com',  # Bubble.io S3 storage
-            'bubble-io-files.s3.amazonaws.com',  # Bubble.io file storage
-            'bubble-io-files-prod.s3.amazonaws.com',  # Bubble.io production file storage
-            'bubble-io-files-staging.s3.amazonaws.com'  # Bubble.io staging file storage
-        ]
-        
-        # Check if the domain is in the allowlist
+        # Check if the domain is in the allowlist from config
         domain = parsed_url.netloc.lower()
-        if not any(domain.endswith(allowed_domain) for allowed_domain in allowed_domains):
+        if not any(domain.endswith(allowed_domain) for allowed_domain in config.ALLOWED_DOMAINS):
             raise ValueError(f"Untrusted domain: {domain}. Only URLs from allowed domains are permitted")
             
     except Exception as e:
@@ -129,8 +128,11 @@ def load_resource_file(task: str, resource_type: str) -> str:
     }
     
     try:
-        # Assuming you have a StorageClient instance available
-        storage_client = StorageClient()  # Make sure this is properly initialized
+        # Use the global storage client that's properly initialized
+        global storage_client
+        if not storage_client:
+            initialize_clients()
+            
         content = storage_client.read_file(file_paths[resource_type])
         if content is None:
             raise FileNotFoundError(f"Could not read file from GCS: {file_paths[resource_type]}")
@@ -182,60 +184,65 @@ def cv_optimizer(request):
                 # Initialize clients if needed
                 initialize_clients()
                 
-                request_json = request.get_json()
-                cv_url = request_json.get('cv_url')
-                jd_url = request_json.get('jd_url')
-                task = request_json.get('task', 'parsing')
-                section = request_json.get('section', '')
-                
-                # Add request details to span
-                process_span.set_attribute("task", task)
-                process_span.set_attribute("cv_url", cv_url)
-                
-                # Validate task-specific requirements
-                if task in ['parsing', 'scoring']:
-                    if not cv_url:
-                        raise ValueError(f"CV URL is required for {task} task")
-                    if section:
-                        raise ValueError(f"Section parameter is not supported for {task} task")
-                
-                # Validate URLs if provided
-                if cv_url:
-                    validate_url(cv_url)
-                if jd_url:
-                    validate_url(jd_url)
-                
-                # Process documents
-                with tracer.start_span("document_processing") as doc_span:
-                    cv_content = doc_processor.download_and_process(cv_url)
-                    jd_content = doc_processor.download_and_process(jd_url) if jd_url else ""
-                
-                # Fetch resources
-                system_prompt, user_prompt_template, few_shot_examples, schema = fetch_resources(task)
-                
-                # Format user prompt
-                user_prompt = user_prompt_template.format(
-                    section=section,
-                    cv_content=cv_content,
-                    jd_content=jd_content,
-                    few_shot_examples=few_shot_examples
-                )
-                
-                # Generate content using Gemini
-                with tracer.start_span("gemini_generation") as gemini_span:
-                    response = gemini_client.generate_content(
-                        prompt=user_prompt,
-                        schema=schema,
-                        system_prompt=system_prompt
+                try:
+                    request_json = request.get_json()
+                    cv_url = request_json.get('cv_url')
+                    jd_url = request_json.get('jd_url')
+                    task = request_json.get('task', 'parsing')
+                    section = request_json.get('section', '')
+                    
+                    # Add request details to span
+                    process_span.set_attribute("task", task)
+                    process_span.set_attribute("cv_url", cv_url)
+                    
+                    # Validate task-specific requirements
+                    if task in ['parsing', 'scoring']:
+                        if not cv_url:
+                            raise ValueError(f"CV URL is required for {task} task")
+                        if section:
+                            raise ValueError(f"Section parameter is not supported for {task} task")
+                    
+                    # Validate URLs if provided
+                    if cv_url:
+                        validate_url(cv_url)
+                    if jd_url:
+                        validate_url(jd_url)
+                    
+                    # Process documents
+                    with tracer.start_span("document_processing") as doc_span:
+                        cv_content = doc_processor.download_and_process(cv_url)
+                        jd_content = doc_processor.download_and_process(jd_url) if jd_url else ""
+                    
+                    # Fetch resources
+                    system_prompt, user_prompt_template, few_shot_examples, schema = fetch_resources(task)
+                    
+                    # Format user prompt
+                    user_prompt = user_prompt_template.format(
+                        section=section,
+                        cv_content=cv_content,
+                        jd_content=jd_content,
+                        few_shot_examples=few_shot_examples
                     )
-                    gemini_span.set_attribute("success", response["status"] == "success")
-                
-                if response["status"] == "success":
-                    return json.dumps(response["data"]), 200
-                else:
-                    span.set_attribute("error", True)
-                    span.set_attribute("error.message", response["error"])
-                    return json.dumps({"error": response["error"]}), 500
+                    
+                    # Generate content using Gemini
+                    with tracer.start_span("gemini_generation") as gemini_span:
+                        response = gemini_client.generate_content(
+                            prompt=user_prompt,
+                            schema=schema,
+                            system_prompt=system_prompt
+                        )
+                        gemini_span.set_attribute("success", response["status"] == "success")
+                    
+                    if response["status"] == "success":
+                        return json.dumps(response["data"]), 200
+                    else:
+                        span.set_attribute("error", True)
+                        span.set_attribute("error.message", response["error"])
+                        return json.dumps({"error": response["error"]}), 500
+                        
+                finally:
+                    # Clean up resources after processing
+                    cleanup_clients()
                     
         except Exception as e:
             span.set_attribute("error", True)

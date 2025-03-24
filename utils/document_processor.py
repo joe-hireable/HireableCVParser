@@ -14,6 +14,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 import fitz  # PyMuPDF
 import docx
 from opentelemetry import trace
+import config
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +29,53 @@ class DocumentProcessor:
         self.storage_client = storage.Client()
         # Initialize Firestore client
         self.db = firestore.Client()
-        # Cache configuration
-        self.cache_ttl_days = 30  # Cache documents for 30 days
-        self.memory_cache_size = 100  # Adjust based on your needs
+        # Track if resources are closed
+        self._closed = False
         
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit - ensures cleanup is called."""
+        self.cleanup()
+
+    def cleanup(self) -> None:
+        """
+        Clean up resources and close connections.
+        This method should be called when the processor is no longer needed.
+        """
+        if self._closed:
+            return
+
+        try:
+            # Close Firestore client
+            if hasattr(self, 'db'):
+                self.db.close()
+                logger.info("Closed Firestore client connection")
+
+            # Close Storage client
+            if hasattr(self, 'storage_client'):
+                self.storage_client.close()
+                logger.info("Closed Storage client connection")
+
+            # Clear memory cache
+            if hasattr(self, '_get_from_memory_cache'):
+                self._get_from_memory_cache.cache_clear()
+                logger.info("Cleared memory cache")
+
+            self._closed = True
+            logger.info("Successfully cleaned up DocumentProcessor resources")
+
+        except Exception as e:
+            logger.error(f"Error during DocumentProcessor cleanup: {e}")
+            raise
+
+    def _ensure_not_closed(self):
+        """Helper method to check if the processor is closed."""
+        if self._closed:
+            raise RuntimeError("DocumentProcessor has been closed and cannot be used")
+
     def _get_cache_key(self, url: str) -> str:
         """
         Generate a cache key for the given URL.
@@ -54,16 +98,19 @@ class DocumentProcessor:
             url: Original document URL
             content_type: Content type of the document
         """
+        # Get current UTC timestamp
+        current_utc = datetime.datetime.utcnow()
+        
         # Compress large content
-        if len(text_content) > 100000:  # ~100KB
+        if len(text_content) > config.CACHE_COMPRESSION_THRESHOLD:
             compressed = zlib.compress(text_content.encode('utf-8'))
             cache_data = {
                 'content': compressed,
                 'compressed': True,
                 'url': url,
                 'content_type': content_type,
-                'timestamp': firestore.SERVER_TIMESTAMP,
-                'expiration': firestore.SERVER_TIMESTAMP + datetime.timedelta(days=self.cache_ttl_days)
+                'timestamp': current_utc,
+                'expiration': current_utc + datetime.timedelta(days=config.CACHE_TTL_DAYS)
             }
         else:
             cache_data = {
@@ -71,20 +118,21 @@ class DocumentProcessor:
                 'compressed': False,
                 'url': url,
                 'content_type': content_type,
-                'timestamp': firestore.SERVER_TIMESTAMP,
-                'expiration': firestore.SERVER_TIMESTAMP + datetime.timedelta(days=self.cache_ttl_days)
+                'timestamp': current_utc,
+                'expiration': current_utc + datetime.timedelta(days=config.CACHE_TTL_DAYS)
             }
         
         self.db.collection('document_cache').document(cache_key).set(cache_data)
         logger.info(f"Cached document content for {url} (compressed: {cache_data['compressed']})")
 
-    @lru_cache(maxsize=100)
+    @lru_cache(maxsize=config.MEMORY_CACHE_SIZE)
     def _get_from_memory_cache(self, cache_key: str) -> Optional[str]:
         """In-memory cache for very frequently accessed documents"""
         return None  # This will only store successful retrievals
 
     def download_and_process(self, url: str) -> Optional[str]:
         """Download a document from URL or GCS and extract its text content."""
+        self._ensure_not_closed()
         with self.tracer.start_as_current_span("download_and_process") as span:
             try:
                 span.set_attribute("document.url", url)
@@ -109,9 +157,10 @@ class DocumentProcessor:
                         content = cache_data.get('content')
                         is_compressed = cache_data.get('compressed', False)
                         
-                        # Check if cache has expired
+                        # Check if cache has expired using UTC timestamp
                         expiration = cache_data.get('expiration')
-                        if expiration and expiration < datetime.datetime.now():
+                        current_utc = datetime.datetime.utcnow()
+                        if expiration and expiration < current_utc:
                             logger.info(f"Cache expired for {url}")
                             cache_ref.delete()
                         else:
@@ -138,11 +187,7 @@ class DocumentProcessor:
                 with self.tracer.start_span("extract_text") as process_span:
                     process_span.set_attribute("content_type", content_type)
                     # Validate content types explicitly
-                    allowed_types = [
-                        'application/pdf',
-                        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                    ]
-                    if content_type not in allowed_types:
+                    if content_type not in config.ALLOWED_CONTENT_TYPES:
                         logger.warning(f"Unsupported content type: {content_type}")
                         return None
                     

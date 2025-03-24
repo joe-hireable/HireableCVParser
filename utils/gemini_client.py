@@ -8,6 +8,7 @@ from google.genai.types import HttpOptions, Part, GenerateContentConfig
 from google.cloud import aiplatform
 from config import VERTEX_AI_ENABLED
 from opentelemetry import trace
+import base64
 
 logger = logging.getLogger(__name__)
 
@@ -35,22 +36,6 @@ class GeminiClient:
         
         self.tracer = trace.get_tracer(__name__)
         
-        try:
-            # Initialize Vertex AI with ADC
-            aiplatform.init(
-                project=project_id,
-                location=location
-            )
-            
-            # Configure Gemini with ADC
-            genai.configure()
-            
-            logger.info(f"Initialized Gemini client for project {project_id} using ADC")
-                
-        except Exception as e:
-            logger.error(f"Failed to initialize Gemini client: {str(e)}")
-            raise
-        
         # Default generation config
         self.default_config = {
             "temperature": 0.5,
@@ -61,22 +46,33 @@ class GeminiClient:
         }
         
         # Model name for Gemini 2.0 Flash
-        self.model_name = "gemini-2.0-flash"
+        self.model_name = "gemini-2.0-flash-001"
         
         # Initialize the appropriate client based on configuration
         self.use_vertex_ai = VERTEX_AI_ENABLED
         
-        if self.use_vertex_ai:
-            # Initialize Vertex AI
-            aiplatform.init(project=project_id, location=location)
-        else:
-            # Initialize Google Generative AI
-            # API key should be set via environment variable GOOGLE_API_KEY or explicitly
-            api_key = os.environ.get("GOOGLE_API_KEY")
-            if api_key:
-                genai.configure(api_key=api_key)
-        
-        logger.info(f"Initialized Gemini client with project ID {project_id} in {location}")
+        try:
+            if self.use_vertex_ai:
+                # Initialize Vertex AI
+                aiplatform.init(project=project_id, location=location)
+                self.client = genai.Client(
+                    vertexai=True,
+                    project=project_id,
+                    location=location
+                )
+                logger.info(f"Initialized Vertex AI client for project {project_id} in {location}")
+            else:
+                # Initialize Google Generative AI with API key
+                api_key = os.environ.get("GOOGLE_API_KEY")
+                if not api_key:
+                    raise ValueError("GOOGLE_API_KEY environment variable is required for non-Vertex AI usage")
+                
+                self.client = genai.Client(api_key=api_key)
+                logger.info(f"Initialized Google Generative AI client with API key")
+                
+        except Exception as e:
+            logger.error(f"Failed to initialize Gemini client: {str(e)}")
+            raise
     
     def _calculate_retry_delay(self, attempt: int) -> float:
         """Calculate exponential backoff delay with jitter."""
@@ -93,7 +89,7 @@ class GeminiClient:
         prompt: str,
         schema: Optional[Dict[str, Any]] = None,
         system_prompt: Optional[str] = None,
-        generation_config: Optional[Dict[str, Any]] = None,
+        config: Optional[Dict[str, Any]] = None,
         file_uri: Optional[str] = None,
         mime_type: str = "application/pdf"
     ) -> Dict[str, Any]:
@@ -106,37 +102,45 @@ class GeminiClient:
             
             while attempt <= self.max_retries:
                 try:
-                    # Create a client with Vertex AI integration
-                    client = genai.Client(
-                        vertexai=True,
-                        project=self.project_id,
-                        location=self.location
-                    )
+                    
+                    # Format system instruction correctly
+                    system_instruction = Part.from_text(text=system_prompt) if system_prompt else None
                     
                     # Prepare generation config
                     config_params = self.default_config.copy()
-                    if generation_config:
-                        config_params.update(generation_config)
+                    if config:
+                        config_params.update(config)
                     
-                    # Prepare content parts based on whether we have a file
-                    contents = []
-                    if file_uri:
-                        # File-based content with optional text prompt
-                        contents.append({"file_uri": file_uri, "mime_type": mime_type})
-                        if prompt:
-                            contents.append(prompt)
-                    else:
-                        # Text-only content
-                        contents.append(prompt)
-                    
-                    # Generate content directly with the models API
-                    response = client.models.generate_content(
-                        model=self.model_name,
-                        contents=contents,
-                        generation_config=config_params,
-                        system_instruction=system_prompt if system_prompt else None,
+                    # Create proper GenerateContentConfig
+                    generation_config = GenerateContentConfig(
+                        temperature=config_params.get("temperature", 0.5),
+                        top_p=config_params.get("top_p", 0.95),
+                        top_k=config_params.get("top_k", 40),
+                        max_output_tokens=config_params.get("max_output_tokens", 8192),
+                        candidate_count=config_params.get("candidate_count", 1),
+                        system_instruction=system_instruction,
                         response_mime_type="application/json" if schema else None,
-                        response_schema=schema if schema else None
+                        response_schema=schema
+                    )
+                    
+                    # Prepare properly typed content
+                    content_parts = []
+                    if file_uri:
+                        # Add file part if provided
+                        content_parts.append(Part.from_uri(uri=file_uri, mime_type=mime_type))
+                    
+                    # Add text prompt
+                    if prompt:
+                        content_parts.append(Part.from_text(text=prompt))
+                    
+                    # Create content with role
+                    contents = [genai.types.Content(role="user", parts=content_parts)]
+                    
+                    # Generate content using the client with correct model name
+                    response = self.client.models.generate_content(
+                        model=f"{self.model_name}",
+                        contents=contents,
+                        config=generation_config
                     )
                     
                     # Handle schema-based responses
