@@ -13,8 +13,10 @@ eggs/
 .eggs/
 lib/
 lib64/
-config.py
 parts/
+prompts/*
+schemas/*
+few_shot_examples/*
 sdist/
 keys/
 var/
@@ -25,6 +27,7 @@ var/
 # Virtual Environment
 venv/
 ENV/
+.venv/
 
 # IDE
 .idea/

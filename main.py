@@ -193,10 +193,16 @@ def cv_optimizer(request):
                     jd_url = request_json.get('jd_url')
                     task = request_json.get('task', 'parsing')
                     section = request_json.get('section')
+                    model = request_json.get('model', config.DEFAULT_MODEL)
                     
+                    # Validate model selection
+                    if model not in config.SUPPORTED_MODELS:
+                        raise ValueError(f"Unsupported model: {model}. Must be one of: {', '.join(config.SUPPORTED_MODELS)}")
+
                     # Add request details to span
                     process_span.set_attribute("task", task)
                     process_span.set_attribute("cv_url", cv_url)
+                    process_span.set_attribute("model", model)
                     
                     # Validate task-specific requirements
                     if task in ['parsing', 'scoring']:
@@ -227,11 +233,12 @@ def cv_optimizer(request):
                         few_shot_examples=few_shot_examples
                     )
                     
-                    # Generate content using Gemini with Pydantic model
+                    # Generate content using Gemini with Pydantic model and specified model
                     response = gemini_client.generate_content(
                         prompt=user_prompt,
-                        response_schema=schema_model,  # Now passing the Pydantic model class
-                        system_prompt=system_prompt
+                        response_schema=schema_model,
+                        system_prompt=system_prompt,
+                        model=model
                     )
                     
                     if response["status"] == "success":

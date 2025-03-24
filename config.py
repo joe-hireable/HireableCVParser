@@ -10,7 +10,11 @@ PROJECT_ID = "hireable-places"
 LOCATION = "europe-west9"  # Paris region
 
 # Gemini API settings
-MODEL_NAME = "gemini-2.0-flash-001"
+DEFAULT_MODEL = "gemini-2.0-flash-001"
+SUPPORTED_MODELS = [
+    "gemini-2.0-flash-001",     # Default model
+    "gemini-2.0-flash-lite-001" # Faster model
+]
 VERTEX_AI_ENABLED = True  # Flag to switch between direct Gemini API and Vertex AI
 
 # File paths

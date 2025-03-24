@@ -93,11 +93,13 @@ class GeminiClient:
         system_prompt: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
         file_uri: Optional[str] = None,
-        mime_type: str = "application/pdf"
+        mime_type: str = "application/pdf",
+        model: Optional[str] = None
     ) -> Dict[str, Any]:
         with self.tracer.start_as_current_span("generate_content") as span:
             span.set_attribute("prompt.length", len(prompt))
             span.set_attribute("has_system_prompt", system_prompt is not None)
+            span.set_attribute("model", model or self.model_name)
             
             attempt = 0
             last_error = None
@@ -146,9 +148,12 @@ class GeminiClient:
                     # Create content with role
                     contents = [genai.types.Content(role="user", parts=content_parts)]
                     
-                    # Generate content using the client with correct model name
+                    # Use provided model or fall back to default
+                    model_name = model or self.model_name
+
+                    # Generate content using the client with specified model name
                     response = self.client.models.generate_content(
-                        model=f"{self.model_name}",
+                        model=model_name,
                         contents=contents,
                         config=generation_config
                     )
