@@ -4,24 +4,18 @@ import logging
 import functions_framework
 from typing import Dict, Any, Optional, Tuple
 import uuid
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.gcp_trace import GCPTraceExporter
 from urllib.parse import urlparse
 
 from utils.storage import StorageClient
 from utils.document_processor import DocumentProcessor
 from utils.gemini_client import GeminiClient
 import config
-
-# Initialize OpenTelemetry
-tracer_provider = TracerProvider()
-tracer_provider.add_span_processor(
-    BatchSpanProcessor(GCPTraceExporter())
-)
-trace.set_tracer_provider(tracer_provider)
-tracer = trace.get_tracer(__name__)
+from opentelemetry import trace
+from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.propagate import set_global_textmap
+from opentelemetry.propagators.cloud_trace_propagator import CloudTraceFormatPropagator
 
 class StructuredLogFormatter(logging.Formatter):
     def format(self, record):
@@ -41,6 +35,16 @@ handler = logging.StreamHandler()
 handler.setFormatter(StructuredLogFormatter())
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
+
+# Initialize tracing (add this after your logging setup)
+tracer_provider = TracerProvider()
+cloud_trace_exporter = CloudTraceSpanExporter()
+tracer_provider.add_span_processor(BatchSpanProcessor(cloud_trace_exporter))
+trace.set_tracer_provider(tracer_provider)
+set_global_textmap(CloudTraceFormatPropagator())
+
+# Get a tracer
+tracer = trace.get_tracer(__name__)
 
 # Global client instances for pooling
 storage_client = None
@@ -116,18 +120,21 @@ def load_resource_file(task: str, resource_type: str) -> str:
     Returns:
         Content of the resource file
     """
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    
+    # Define GCS paths instead of local paths
     file_paths = {
-        'system_prompt': os.path.join(base_dir, 'prompts', 'system_prompt.md'),
-        'user_prompt': os.path.join(base_dir, 'prompts', f'{task}_user_prompt.md'),
-        'schema': os.path.join(base_dir, 'schemas', f'{task}_schema.json'),
-        'examples': os.path.join(base_dir, 'few_shot_examples', f'{task}_few_shot_examples.md')
+        'system_prompt': 'prompts/system_prompt.md',
+        'user_prompt': f'prompts/{task}_user_prompt.md',
+        'schema': f'schemas/{task}_schema.json',
+        'examples': f'few_shot_examples/{task}_few_shot_examples.md'
     }
     
     try:
-        with open(file_paths[resource_type], 'r', encoding='utf-8') as f:
-            return f.read()
+        # Assuming you have a StorageClient instance available
+        storage_client = StorageClient()  # Make sure this is properly initialized
+        content = storage_client.read_file(file_paths[resource_type])
+        if content is None:
+            raise FileNotFoundError(f"Could not read file from GCS: {file_paths[resource_type]}")
+        return content
     except Exception as e:
         logger.error(f"Error loading resource file {file_paths[resource_type]}: {e}")
         raise
@@ -153,94 +160,85 @@ def fetch_resources(task: str) -> Tuple[str, str, str, Dict[str, Any]]:
 
 @functions_framework.http
 def cv_optimizer(request):
-    """
-    Cloud Function to optimize CVs using Gemini API.
-    
-    Args:
-        request: HTTP request object
-        
-    Returns:
-        HTTP response with JSON result
-    """
     with tracer.start_as_current_span("cv_optimizer") as span:
-        if request.method == 'GET' and request.path == '/health':
-            return json.dumps({"status": "healthy"}), 200
-        
-        if request.method != 'POST':
-            return json.dumps({"error": "Only POST method is supported"}), 405
-        
         try:
-            # Initialize clients if needed
-            initialize_clients()
-            
-            request_json = request.get_json()
+            # Add request details to span
+            span.set_attribute("http.method", request.method)
+            span.set_attribute("http.url", request.url)
             request_id = request.headers.get('X-Request-ID', f"req-{uuid.uuid4()}")
-            logger.info(f"Processing request {request_id}", extra={'request_id': request_id})
-            
-            # Add request_id to span
             span.set_attribute("request_id", request_id)
             
-            # Extract parameters
-            cv_url = request_json.get('cv_url')
-            jd_url = request_json.get('jd_url')
-            task = request_json.get('task', 'parsing')  # Default to parsing if not specified
-            section = request_json.get('section', '')
+            # Health check
+            if request.method == 'GET' and request.path == '/health':
+                return json.dumps({"status": "healthy"}), 200
             
-            # Add task info to span
-            span.set_attribute("task", task)
-            if section:
-                span.set_attribute("section", section)
+            if request.method != 'POST':
+                span.set_attribute("error", True)
+                span.set_attribute("error.message", "Only POST method is supported")
+                return json.dumps({"error": "Only POST method is supported"}), 405
             
-            # Validate task-specific requirements
-            if task in ['parsing', 'scoring']:
-                if not cv_url:
-                    raise ValueError(f"CV URL is required for {task} task")
-                if section:
-                    raise ValueError(f"Section parameter is not supported for {task} task")
-            
-            # Validate URLs if provided
-            if cv_url:
-                validate_url(cv_url)
-            if jd_url:
-                validate_url(jd_url)
-            
-            # Process documents with timeout
-            try:
-                with tracer.start_as_current_span("process_documents"):
+            # Process request with sub-spans
+            with tracer.start_span("process_request") as process_span:
+                # Initialize clients if needed
+                initialize_clients()
+                
+                request_json = request.get_json()
+                cv_url = request_json.get('cv_url')
+                jd_url = request_json.get('jd_url')
+                task = request_json.get('task', 'parsing')
+                section = request_json.get('section', '')
+                
+                # Add request details to span
+                process_span.set_attribute("task", task)
+                process_span.set_attribute("cv_url", cv_url)
+                
+                # Validate task-specific requirements
+                if task in ['parsing', 'scoring']:
+                    if not cv_url:
+                        raise ValueError(f"CV URL is required for {task} task")
+                    if section:
+                        raise ValueError(f"Section parameter is not supported for {task} task")
+                
+                # Validate URLs if provided
+                if cv_url:
+                    validate_url(cv_url)
+                if jd_url:
+                    validate_url(jd_url)
+                
+                # Process documents
+                with tracer.start_span("document_processing") as doc_span:
                     cv_content = doc_processor.download_and_process(cv_url)
                     jd_content = doc_processor.download_and_process(jd_url) if jd_url else ""
-            except TimeoutError:
-                span.set_status(trace.Status(trace.StatusCode.ERROR, "Document processing timed out"))
-                return json.dumps({"error": "Document processing timed out"}), 504
-            
-            # Fetch resources
-            with tracer.start_as_current_span("fetch_resources"):
-                system_prompt, user_prompt_template, few_shot_examples, schema = fetch_resources(task)
-            
-            # Format user prompt
-            user_prompt = user_prompt_template.format(
-                section=section,
-                cv_content=cv_content,
-                jd_content=jd_content,
-                few_shot_examples=few_shot_examples
-            )
-            
-            # Generate content using Gemini
-            with tracer.start_as_current_span("generate_content"):
-                response = gemini_client.generate_content(
-                    prompt=user_prompt,
-                    schema=schema,
-                    system_prompt=system_prompt
-                )
-            
-            if response["status"] == "success":
-                span.set_status(trace.Status(trace.StatusCode.OK))
-                return json.dumps(response["data"]), 200
-            else:
-                span.set_status(trace.Status(trace.StatusCode.ERROR, response["error"]))
-                return json.dumps({"error": response["error"]}), 500
                 
+                # Fetch resources
+                system_prompt, user_prompt_template, few_shot_examples, schema = fetch_resources(task)
+                
+                # Format user prompt
+                user_prompt = user_prompt_template.format(
+                    section=section,
+                    cv_content=cv_content,
+                    jd_content=jd_content,
+                    few_shot_examples=few_shot_examples
+                )
+                
+                # Generate content using Gemini
+                with tracer.start_span("gemini_generation") as gemini_span:
+                    response = gemini_client.generate_content(
+                        prompt=user_prompt,
+                        schema=schema,
+                        system_prompt=system_prompt
+                    )
+                    gemini_span.set_attribute("success", response["status"] == "success")
+                
+                if response["status"] == "success":
+                    return json.dumps(response["data"]), 200
+                else:
+                    span.set_attribute("error", True)
+                    span.set_attribute("error.message", response["error"])
+                    return json.dumps({"error": response["error"]}), 500
+                    
         except Exception as e:
+            span.set_attribute("error", True)
+            span.set_attribute("error.message", str(e))
             logger.exception(f"Error in CV optimizer: {e}", extra={'request_id': request_id if 'request_id' in locals() else None})
-            span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
             return json.dumps({"error": str(e)}), 500 

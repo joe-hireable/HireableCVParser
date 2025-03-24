@@ -33,6 +33,8 @@ class GeminiClient:
         self.base_delay = 1  # Base delay in seconds
         self.max_delay = 10  # Maximum delay in seconds
         
+        self.tracer = trace.get_tracer(__name__)
+        
         try:
             # Initialize Vertex AI with ADC
             aiplatform.init(
@@ -75,14 +77,16 @@ class GeminiClient:
                 genai.configure(api_key=api_key)
         
         logger.info(f"Initialized Gemini client with project ID {project_id} in {location}")
-        
-        self.tracer = trace.get_tracer(__name__)
     
     def _calculate_retry_delay(self, attempt: int) -> float:
         """Calculate exponential backoff delay with jitter."""
-        delay = min(self.base_delay * (2 ** attempt), self.max_delay)  # Exponential backoff
-        jitter = delay * 0.1 * (time.time() % 1)  # Add 10% jitter
-        return delay + jitter
+        with self.tracer.start_as_current_span("calculate_retry_delay") as span:
+            span.set_attribute("attempt", attempt)
+            delay = min(self.base_delay * (2 ** attempt), self.max_delay)  # Exponential backoff
+            jitter = delay * 0.1 * (time.time() % 1)  # Add 10% jitter
+            final_delay = delay + jitter
+            span.set_attribute("delay", final_delay)
+            return final_delay
     
     def generate_content(
         self,
@@ -94,7 +98,9 @@ class GeminiClient:
         mime_type: str = "application/pdf"
     ) -> Dict[str, Any]:
         with self.tracer.start_as_current_span("generate_content") as span:
-            span.set_attribute("model", self.model_name)
+            span.set_attribute("prompt.length", len(prompt))
+            span.set_attribute("has_system_prompt", system_prompt is not None)
+            
             attempt = 0
             last_error = None
             
@@ -143,21 +149,18 @@ class GeminiClient:
                             if text.endswith("```"):
                                 text = text[:-3]
                             parsed_json = json.loads(text.strip())
-                            span.set_status(trace.Status(trace.StatusCode.OK))
                             return {
                                 "status": "success",
                                 "data": parsed_json
                             }
                         except json.JSONDecodeError as e:
                             logger.error(f"Failed to parse JSON response: {e}")
-                            span.set_status(trace.Status(trace.StatusCode.ERROR, f"Invalid JSON response: {e}"))
                             return {
                                 "status": "error",
                                 "error": f"Invalid JSON response: {e}",
                                 "data": response.text
                             }
                     
-                    span.set_status(trace.Status(trace.StatusCode.OK))
                     return {
                         "status": "success",
                         "data": response.text
@@ -173,7 +176,6 @@ class GeminiClient:
                         time.sleep(delay)
                     else:
                         logger.error(f"All {self.max_retries} attempts failed. Last error: {str(last_error)}")
-                        span.set_status(trace.Status(trace.StatusCode.ERROR, str(last_error)))
                         return {
                             "status": "error",
                             "error": str(last_error),
