@@ -1,94 +1,77 @@
 {
   "type": "object",
-  "strict": true,
+  "description": "Schema for profile statement optimization and feedback",
+  "additionalProperties": false,
+  "required": ["status", "data", "errors"],
   "properties": {
     "status": {
       "type": "string",
-      "enum": [
-        "success",
-        "errors",
-        "partial"
-      ],
-      "description": "Processing status of the request (success, error, or partial completion)"
+      "enum": ["success", "errors", "partial"],
+      "description": "Processing status"
     },
     "errors": {
       "type": "array",
+      "nullable": true,
       "items": {
         "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message", "severity"],
         "properties": {
           "code": {
             "type": "string",
-            "description": "Error code identifier for programmatic handling"
+            "description": "Error code identifier"
           },
           "message": {
             "type": "string",
-            "description": "Human-readable error description"
-          },
-          "field": {
-            "type": "string",
-            "description": "Specific field that triggered the error"
+            "description": "Human-readable error message"
           },
           "severity": {
             "type": "string",
-            "enum": [
-              "error",
-              "warning"
-            ],
-            "description": "Error severity level (critical error or advisory warning)"
+            "enum": ["error", "warning"],
+            "default": "error"
           }
-        },
-        "required": [
-          "code",
-          "message",
-          "field",
-          "severity"
-        ]
-      },
-      "nullable": true,
-      "description": "List of errors encountered during processing, null if no errors"
+        }
+      }
     },
     "data": {
       "type": "object",
+      "additionalProperties": false,
+      "nullable": true,
+      "required": ["profileStatement", "feedback"],
       "properties": {
         "profileStatement": {
           "type": "string",
-          "description": "Compelling professional summary (max 750 chars) highlighting experience, expertise, and value proposition"
+          "description": "Optimized professional summary",
+          "maxLength": 750
         },
         "feedback": {
           "type": "object",
+          "additionalProperties": false,
+          "required": ["strengths", "areas_to_improve"],
           "properties": {
             "strengths": {
               "type": "array",
+              "description": "Effective aspects of the profile statement",
               "items": {
-                "type": "string"
+                "type": "string",
+                "maxLength": 200
               },
-              "description": "Effective aspects of the profile statement"
+              "minItems": 1,
+              "maxItems": 5
             },
             "areas_to_improve": {
               "type": "array",
+              "description": "Improvement suggestions",
               "items": {
-                "type": "string"
+                "type": "string",
+                "maxLength": 200
               },
-              "description": "Suggestions to enhance profile statement impact and relevance"
+              "minItems": 1,
+              "maxItems": 5
             }
-          },
-          "required": [
-            "strengths",
-            "areas_to_improve"
-          ],
-          "description": "Evaluation of profile statement quality and alignment with target role"
+          }
         }
-      },
-      "required": [
-        "profileStatement",
-        "feedback"
-      ],
-      "description": "Container for optimized profile statement and evaluation feedback"
+      }
     }
-  },
-  "required": [
-    "status",
-    "errors",
-    "data"
-  ]
+  }
 }

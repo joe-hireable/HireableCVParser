@@ -1,97 +1,84 @@
 {
   "type": "object",
-  "strict": true,
+  "description": "Schema for knowledge and achievements assessment",
+  "additionalProperties": false,
+  "required": ["status", "data", "errors"],
   "properties": {
     "status": {
       "type": "string",
-      "enum": [
-        "success",
-        "errors",
-        "partial"
-      ],
-      "description": "Processing status of the request (success, error, or partial completion)"
+      "enum": ["success", "errors", "partial"],
+      "description": "Processing status"
     },
     "errors": {
       "type": "array",
+      "nullable": true,
       "items": {
         "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message", "severity"],
         "properties": {
           "code": {
             "type": "string",
-            "description": "Error code identifier for programmatic handling"
+            "description": "Error code identifier"
           },
           "message": {
             "type": "string",
-            "description": "Human-readable error description"
-          },
-          "field": {
-            "type": "string",
-            "description": "Specific field that triggered the error"
+            "description": "Human-readable error message"
           },
           "severity": {
             "type": "string",
-            "enum": [
-              "error",
-              "warning"
-            ],
-            "description": "Error severity level (critical error or advisory warning)"
+            "enum": ["error", "warning"],
+            "default": "error"
           }
-        },
-        "required": [
-          "code",
-          "message",
-          "field",
-          "severity"
-        ]
-      },
-      "nullable": true,
-      "description": "List of errors encountered during processing, null if no errors"
+        }
+      }
     },
     "data": {
       "type": "object",
+      "additionalProperties": false,
+      "required": ["achievements", "feedback"],
       "properties": {
         "achievements": {
           "type": "array",
+          "description": "STAR-formatted achievements with quantifiable results",
           "items": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 300
           },
-          "description": "Quantifiable accomplishments formatted with STAR method and action verbs"
+          "minItems": 2,
+          "maxItems": 8,
+          "uniqueItems": true
         },
         "feedback": {
           "type": "object",
+          "additionalProperties": false,
+          "required": ["strengths", "areas_to_improve"],
           "properties": {
             "strengths": {
               "type": "array",
+              "description": "Effective aspects of the achievements",
               "items": {
-                "type": "string"
+                "type": "string",
+                "maxLength": 200
               },
-              "description": "Effective aspects of the achievements section"
+              "minItems": 1,
+              "maxItems": 5,
+              "uniqueItems": true
             },
             "areas_to_improve": {
               "type": "array",
+              "description": "Improvement suggestions",
               "items": {
-                "type": "string"
+                "type": "string",
+                "maxLength": 200
               },
-              "description": "Suggestions to enhance achievements impact and relevance"
+              "minItems": 1,
+              "maxItems": 5,
+              "uniqueItems": true
             }
-          },
-          "required": [
-            "strengths",
-            "areas_to_improve"
-          ],
-          "description": "Evaluation of achievements quality and relevance to target role"
+          }
         }
-      },
-      "required": [
-        "achievements",
-        "feedback"
-      ],
-      "description": "Container for optimized achievements and evaluation feedback"
+      }
     }
-  },
-  "required": [
-    "status",
-    "errors",
-    "data"
-  ]
+  }
 }

@@ -2,7 +2,7 @@ import os
 import json
 import logging
 import functions_framework
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, Type
 import uuid
 from urllib.parse import urlparse
 
@@ -16,6 +16,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.propagate import set_global_textmap
 from opentelemetry.propagators.cloud_trace_propagator import CloudTraceFormatPropagator
+from models.schemas import SCHEMA_REGISTRY, BaseResponseSchema
 
 class StructuredLogFormatter(logging.Formatter):
     def format(self, record):
@@ -141,7 +142,7 @@ def load_resource_file(task: str, resource_type: str) -> str:
         logger.error(f"Error loading resource file {file_paths[resource_type]}: {e}")
         raise
 
-def fetch_resources(task: str) -> Tuple[str, str, str, Dict[str, Any]]:
+def fetch_resources(task: str) -> Tuple[str, str, str, Type[BaseResponseSchema]]:
     """
     Fetch all resources needed for a specific task.
     
@@ -149,16 +150,18 @@ def fetch_resources(task: str) -> Tuple[str, str, str, Dict[str, Any]]:
         task: Task identifier (parsing, ps, cs, etc.)
         
     Returns:
-        Tuple of (system prompt, user prompt, few shot examples, schema)
+        Tuple of (system prompt, user prompt, few shot examples, schema model class)
     """
     system_prompt = load_resource_file(task, 'system_prompt')
     user_prompt = load_resource_file(task, 'user_prompt')
     few_shot_examples = load_resource_file(task, 'examples')
     
-    schema_text = load_resource_file(task, 'schema')
-    schema = json.loads(schema_text)
+    # Get the appropriate Pydantic model class for the task
+    schema_model = SCHEMA_REGISTRY.get(task)
+    if not schema_model:
+        raise ValueError(f"No schema model found for task: {task}")
     
-    return system_prompt, user_prompt, few_shot_examples, schema
+    return system_prompt, user_prompt, few_shot_examples, schema_model
 
 @functions_framework.http
 def cv_optimizer(request):
@@ -189,7 +192,7 @@ def cv_optimizer(request):
                     cv_url = request_json.get('cv_url')
                     jd_url = request_json.get('jd_url')
                     task = request_json.get('task', 'parsing')
-                    section = request_json.get('section', '')
+                    section = request_json.get('section')
                     
                     # Add request details to span
                     process_span.set_attribute("task", task)
@@ -199,7 +202,7 @@ def cv_optimizer(request):
                     if task in ['parsing', 'scoring']:
                         if not cv_url:
                             raise ValueError(f"CV URL is required for {task} task")
-                        if section:
+                        if section is not None:
                             raise ValueError(f"Section parameter is not supported for {task} task")
                     
                     # Validate URLs if provided
@@ -213,8 +216,8 @@ def cv_optimizer(request):
                         cv_content = doc_processor.download_and_process(cv_url)
                         jd_content = doc_processor.download_and_process(jd_url) if jd_url else ""
                     
-                    # Fetch resources
-                    system_prompt, user_prompt_template, few_shot_examples, schema = fetch_resources(task)
+                    # Fetch resources with Pydantic model
+                    system_prompt, user_prompt_template, few_shot_examples, schema_model = fetch_resources(task)
                     
                     # Format user prompt
                     user_prompt = user_prompt_template.format(
@@ -224,14 +227,12 @@ def cv_optimizer(request):
                         few_shot_examples=few_shot_examples
                     )
                     
-                    # Generate content using Gemini
-                    with tracer.start_span("gemini_generation") as gemini_span:
-                        response = gemini_client.generate_content(
-                            prompt=user_prompt,
-                            schema=schema,
-                            system_prompt=system_prompt
-                        )
-                        gemini_span.set_attribute("success", response["status"] == "success")
+                    # Generate content using Gemini with Pydantic model
+                    response = gemini_client.generate_content(
+                        prompt=user_prompt,
+                        response_schema=schema_model,  # Now passing the Pydantic model class
+                        system_prompt=system_prompt
+                    )
                     
                     if response["status"] == "success":
                         return json.dumps(response["data"]), 200

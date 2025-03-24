@@ -7,6 +7,7 @@ import datetime
 import zlib
 from typing import Tuple, Optional
 from functools import lru_cache
+from datetime import timezone
 
 import requests
 from google.cloud import storage, firestore
@@ -99,7 +100,7 @@ class DocumentProcessor:
             content_type: Content type of the document
         """
         # Get current UTC timestamp
-        current_utc = datetime.datetime.utcnow()
+        current_utc = datetime.datetime.now(timezone.utc)
         
         # Compress large content
         if len(text_content) > config.CACHE_COMPRESSION_THRESHOLD:
@@ -159,7 +160,9 @@ class DocumentProcessor:
                         
                         # Check if cache has expired using UTC timestamp
                         expiration = cache_data.get('expiration')
-                        current_utc = datetime.datetime.utcnow()
+                        current_utc = datetime.datetime.now(timezone.utc)
+                        if expiration and not expiration.tzinfo:
+                            expiration = expiration.replace(tzinfo=timezone.utc)
                         if expiration and expiration < current_utc:
                             logger.info(f"Cache expired for {url}")
                             cache_ref.delete()

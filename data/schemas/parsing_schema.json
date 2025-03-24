@@ -1,6 +1,8 @@
 {
   "type": "object",
   "description": "Schema for CV/resume parsing with status and structured data fields",
+  "additionalProperties": false,
+  "required": ["status", "errors", "data"],
   "properties": {
     "status": {
       "type": "string",
@@ -16,6 +18,8 @@
       "description": "List of errors encountered during processing, if any",
       "items": {
         "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message", "field", "severity"],
         "properties": {
           "code": {
             "type": "string",
@@ -37,19 +41,15 @@
               "warning"
             ]
           }
-        },
-        "required": [
-          "code",
-          "message",
-          "field",
-          "severity"
-        ]
+        }
       },
       "nullable": true
     },
     "data": {
       "type": "object",
       "description": "Extracted CV/resume data structure",
+      "additionalProperties": false,
+      "required": ["firstName", "surname", "email", "phone", "links", "location", "headline", "profileStatement", "skills", "achievements", "languages", "experience"],
       "properties": {
         "firstName": {
           "type": "string",
@@ -76,6 +76,8 @@
           "description": "Professional and social media links",
           "items": {
             "type": "object",
+            "additionalProperties": false,
+            "required": ["title", "url"],
             "properties": {
               "title": {
                 "type": "string",
@@ -87,17 +89,15 @@
                 "description": "Full URL of the link",
                 "nullable": true
               }
-            },
-            "required": [
-              "title",
-              "url"
-            ]
+            }
           },
           "nullable": true
         },
         "location": {
           "type": "object",
           "description": "Current location information",
+          "additionalProperties": false,
+          "required": ["city", "country", "postalCode"],
           "properties": {
             "city": {
               "type": "string",
@@ -115,11 +115,6 @@
               "nullable": true
             }
           },
-          "required": [
-            "city",
-            "country",
-            "postalCode"
-          ],
           "nullable": true
         },
         "headline": {
@@ -135,6 +130,8 @@
           "description": "Professional and personal skills",
           "items": {
             "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "proficiency", "skillType"],
             "properties": {
               "name": {
                 "type": "string",
@@ -159,12 +156,7 @@
                   "soft"
                 ]
               }
-            },
-            "required": [
-              "name",
-              "proficiency",
-              "skillType"
-            ]
+            }
           }
         },
         "achievements": {
@@ -179,6 +171,8 @@
           "description": "Languages known with proficiency levels",
           "items": {
             "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "level"],
             "properties": {
               "name": {
                 "type": "string",
@@ -196,11 +190,7 @@
                   "Basic"
                 ]
               }
-            },
-            "required": [
-              "name",
-              "level"
-            ]
+            }
           },
           "nullable": true
         },
@@ -209,6 +199,8 @@
           "description": "Professional work experience",
           "items": {
             "type": "object",
+            "additionalProperties": false,
+            "required": ["company", "start", "end", "current", "summary", "highlights"],
             "properties": {
               "company": {
                 "type": "string",
@@ -240,59 +232,16 @@
                   "type": "string"
                 },
                 "nullable": true
-              },
-              "roles": {
-                "type": "array",
-                "description": "Different positions held within the company",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "title": {
-                      "type": "string",
-                      "description": "Job title or position name"
-                    },
-                    "start": {
-                      "type": "string",
-                      "description": "Start date in this role",
-                      "nullable": true
-                    },
-                    "end": {
-                      "type": "string",
-                      "description": "End date in this role",
-                      "nullable": true
-                    },
-                    "current": {
-                      "type": "boolean",
-                      "description": "Whether this is the current role",
-                      "nullable": true
-                    }
-                  },
-                  "required": [
-                    "title",
-                    "start",
-                    "end",
-                    "current"
-                  ]
-                }
               }
-            },
-            "required": [
-              "company",
-              "roles",
-              "start",
-              "end",
-              "current",
-              "summary",
-              "highlights"
-            ]
-          },
-          "nullable": true
+            }
+          }
         },
         "education": {
           "type": "array",
           "description": "Educational background and qualifications",
           "items": {
             "type": "object",
+            "additionalProperties": false,
             "properties": {
               "institution": {
                 "type": "string",
@@ -300,6 +249,7 @@
               },
               "location": {
                 "type": "object",
+                "additionalProperties": false,
                 "description": "Location of the institution",
                 "properties": {
                   "city": {
@@ -322,7 +272,7 @@
                 "description": "Degrees or certifications obtained",
                 "items": {
                   "type": "object",
-                  "type": "object",
+                  "additionalProperties": false,
                   "properties": {
                     "qualification": {
                       "type": "string",
@@ -373,6 +323,7 @@
           "description": "Professional certifications and credentials",
           "items": {
             "type": "object",
+            "additionalProperties": false,
             "properties": {
               "name": {
                 "type": "string",
@@ -402,6 +353,7 @@
           "description": "Professional associations and memberships",
           "items": {
             "type": "object",
+            "additionalProperties": false,
             "properties": {
               "institution": {
                 "type": "string",
@@ -424,6 +376,7 @@
           "description": "Earlier career positions or less detailed experience",
           "items": {
             "type": "object",
+            "additionalProperties": false,
             "properties": {
               "company": {
                 "type": "string",
@@ -444,6 +397,7 @@
                 "description": "Positions held at this company",
                 "items": {
                   "type": "object",
+                  "additionalProperties": false,
                   "properties": {
                     "title": {
                       "type": "string",
@@ -482,6 +436,7 @@
           "description": "Published works and articles",
           "items": {
             "type": "object",
+            "additionalProperties": false,
             "properties": {
               "pubType": {
                 "type": "string",
@@ -514,32 +469,7 @@
           },
           "nullable": true
         }
-      },
-      "required": [
-        "headline",
-        "profileStatement",
-        "skills",
-        "achievements",
-        "experience",
-        "earlierCareer",
-        "professionalMemberships",
-        "publications",
-        "addDetails",
-        "education",
-        "certifications",
-        "languages",
-        "firstName",
-        "phone",
-        "email",
-        "links",
-        "location",
-        "surname"
-      ]
+      }
     }
-  },
-  "required": [
-    "status",
-    "errors",
-    "data"
-  ]
+  }
 }

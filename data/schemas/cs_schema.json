@@ -1,127 +1,102 @@
 {
   "type": "object",
-  "strict": true,
+  "description": "Schema for skills and competency assessment",
+  "additionalProperties": false,
+  "required": ["status", "data", "errors"],
   "properties": {
     "status": {
       "type": "string",
-      "enum": [
-        "success",
-        "errors",
-        "partial"
-      ],
-      "description": "Processing status of the request (success, error, or partial completion)"
+      "enum": ["success", "errors", "partial"],
+      "description": "Processing status"
     },
     "errors": {
       "type": "array",
+      "nullable": true,
       "items": {
         "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message", "severity"],
         "properties": {
           "code": {
             "type": "string",
-            "description": "Error code identifier for programmatic handling"
+            "description": "Error code identifier"
           },
           "message": {
             "type": "string",
-            "description": "Human-readable error description"
-          },
-          "field": {
-            "type": "string",
-            "description": "Specific field that triggered the error"
+            "description": "Human-readable error message"
           },
           "severity": {
             "type": "string",
-            "enum": [
-              "error",
-              "warning"
-            ],
-            "description": "Error severity level (critical error or advisory warning)"
+            "enum": ["error", "warning"],
+            "default": "error"
           }
-        },
-        "required": [
-          "code",
-          "message",
-          "field",
-          "severity"
-        ]
-      },
-      "nullable": true,
-      "description": "List of errors encountered during processing, null if no errors"
+        }
+      }
     },
     "data": {
       "type": "object",
+      "additionalProperties": false,
+      "required": ["skills", "feedback"],
       "properties": {
         "skills": {
           "type": "array",
+          "description": "Prioritized skills relevant to target role",
           "items": {
             "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "proficiency", "skillType"],
             "properties": {
               "name": {
                 "type": "string",
-                "description": "Standardized skill name with normalized terminology"
+                "description": "Standardized skill name",
+                "maxLength": 50
               },
               "proficiency": {
                 "type": "string",
-                "enum": [
-                  "Beginner",
-                  "Average",
-                  "Intermediate",
-                  "Advanced",
-                  "Expert"
-                ],
-                "description": "Skill proficiency level based on experience and competency"
+                "enum": ["Beginner", "Intermediate", "Advanced", "Expert"],
+                "description": "Skill proficiency level"
               },
               "skillType": {
                 "type": "string",
-                "enum": [
-                  "hard",
-                  "soft"
-                ],
-                "description": "Categorizes skill as technical (hard) or interpersonal (soft)"
+                "enum": ["hard", "soft"],
+                "description": "Technical (hard) or interpersonal (soft) skill"
               }
-            },
-            "required": [
-              "name",
-              "proficiency",
-              "skillType"
-            ]
+            }
           },
-          "description": "Prioritized skills relevant to target role (max 14 distinct skills)"
+          "minItems": 5,
+          "maxItems": 14,
+          "uniqueItems": true
         },
         "feedback": {
           "type": "object",
+          "additionalProperties": false,
+          "required": ["strengths", "areas_to_improve"],
           "properties": {
             "strengths": {
               "type": "array",
+              "description": "Effective aspects of skills presentation",
               "items": {
-                "type": "string"
+                "type": "string",
+                "maxLength": 200
               },
-              "description": "Effective aspects of the skills presentation and selection"
+              "minItems": 1,
+              "maxItems": 5,
+              "uniqueItems": true
             },
             "areas_to_improve": {
               "type": "array",
+              "description": "Improvement suggestions",
               "items": {
-                "type": "string"
+                "type": "string",
+                "maxLength": 200
               },
-              "description": "Suggestions to enhance skills relevance to target role"
+              "minItems": 1,
+              "maxItems": 5,
+              "uniqueItems": true
             }
-          },
-          "required": [
-            "strengths",
-            "areas_to_improve"
-          ],
-          "description": "Evaluation of skills selection and alignment with job requirements"
+          }
         }
-      },
-      "required": [
-        "skills",
-        "feedback"
-      ],
-      "description": "Container for optimized skills and evaluation feedback"
+      }
     }
-  },
-  "required": [
-    "status",
-    "errors",
-    "data"
-  ]
+  }
 }

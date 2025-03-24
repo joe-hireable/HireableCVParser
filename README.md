@@ -1,6 +1,6 @@
 # CV Optimizer Cloud Function
 
-A Google Cloud Function that uses Gemini 2.0 Flash Lite to analyze, optimize, and provide insights for CVs (resumes) based on job descriptions.
+A Google Cloud Function that uses Gemini 2.0 Flash to analyze, optimize, and provide insights for CVs (resumes) based on job descriptions.
 
 ## 📋 Table of Contents
 

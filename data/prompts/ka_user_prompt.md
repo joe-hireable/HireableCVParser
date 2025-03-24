@@ -37,7 +37,7 @@ Your task is to extract and enhance key achievements, returning a valid JSON obj
 - Base all feedback on actual content in the CV compared to the job description
 
 #### Format Requirements
-1. Maximum 6 distinct achievements
+1. Generate between 2-8 distinct achievements
 2. Each achievement should be expressed as a single, complete statement
 3. Focus on clarity, specificity, and impact
 4. Remove any vague or generic statements

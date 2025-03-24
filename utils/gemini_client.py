@@ -2,13 +2,15 @@ import os
 import json
 import logging
 import time
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Type, Union
 from google import genai
 from google.genai.types import HttpOptions, Part, GenerateContentConfig
 from google.cloud import aiplatform
 from config import VERTEX_AI_ENABLED
 from opentelemetry import trace
 import base64
+from pydantic import BaseModel, ValidationError
+from models.schemas import BaseResponseSchema, SCHEMA_REGISTRY
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +89,7 @@ class GeminiClient:
     def generate_content(
         self,
         prompt: str,
-        schema: Optional[Dict[str, Any]] = None,
+        response_schema: Optional[Union[Type[BaseResponseSchema], Dict[str, Any]]] = None,
         system_prompt: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
         file_uri: Optional[str] = None,
@@ -111,6 +113,14 @@ class GeminiClient:
                     if config:
                         config_params.update(config)
                     
+                    # Convert Pydantic model to dictionary schema if needed
+                    schema_dict = None
+                    if response_schema:
+                        if isinstance(response_schema, type) and issubclass(response_schema, BaseResponseSchema):
+                            schema_dict = response_schema.model_json_schema()
+                        else:
+                            schema_dict = response_schema
+
                     # Create proper GenerateContentConfig
                     generation_config = GenerateContentConfig(
                         temperature=config_params.get("temperature", 0.5),
@@ -119,8 +129,8 @@ class GeminiClient:
                         max_output_tokens=config_params.get("max_output_tokens", 8192),
                         candidate_count=config_params.get("candidate_count", 1),
                         system_instruction=system_instruction,
-                        response_mime_type="application/json" if schema else None,
-                        response_schema=schema
+                        response_mime_type="application/json" if schema_dict else None,
+                        response_schema=schema_dict
                     )
                     
                     # Prepare properly typed content
@@ -144,7 +154,7 @@ class GeminiClient:
                     )
                     
                     # Handle schema-based responses
-                    if schema:
+                    if response_schema:
                         try:
                             # Clean and parse JSON response
                             text = response.text
@@ -153,12 +163,21 @@ class GeminiClient:
                             if text.endswith("```"):
                                 text = text[:-3]
                             parsed_json = json.loads(text.strip())
+
+                            # Validate with Pydantic if a model was provided
+                            if isinstance(response_schema, type) and issubclass(response_schema, BaseResponseSchema):
+                                validated_data = response_schema.model_validate(parsed_json)
+                                return {
+                                    "status": "success",
+                                    "data": validated_data.model_dump()
+                                }
+
                             return {
                                 "status": "success",
                                 "data": parsed_json
                             }
-                        except json.JSONDecodeError as e:
-                            logger.error(f"Failed to parse JSON response: {e}")
+                        except (json.JSONDecodeError, ValidationError) as e:
+                            logger.error(f"Failed to parse/validate JSON response: {e}")
                             return {
                                 "status": "error",
                                 "error": f"Invalid JSON response: {e}",
@@ -184,4 +203,10 @@ class GeminiClient:
                             "status": "error",
                             "error": str(last_error),
                             "data": None
-                        } 
+                        }
+
+def get_schema_model(task):
+    return SCHEMA_REGISTRY[task]
+
+# Then use it like:
+# schema_model = get_schema_model(task_name) 

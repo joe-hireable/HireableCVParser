@@ -16,7 +16,6 @@ Your task is to extract and enhance the skills section, returning a valid JSON o
 2. Maintain data fidelity - only use skills explicitly mentioned in the CV
 3. Map each skill to appropriate proficiency levels:
    - Beginner: Basic knowledge, limited practical experience
-   - Average: Regular usage with fundamental understanding
    - Intermediate: Solid experience, comfortable with common applications
    - Advanced: Deep understanding, can handle complex scenarios
    - Expert: Extensive knowledge, acknowledged authority on the subject
@@ -35,7 +34,7 @@ Your task is to extract and enhance the skills section, returning a valid JSON o
 2. Remove duplicates and closely related variations
 3. Convert vague descriptors into specific, recognized skill names
 4. Break compound skills into separate, distinct entries when appropriate
-5. Include only the most relevant skills, maximum of 14 distinct skills
+5. Include only the most relevant skills, between 5-14 distinct skills
 
 #### Feedback Guidelines
 - Include 3-5 specific strengths of the candidate's current skills presentation relevant to the target role

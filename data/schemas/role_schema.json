@@ -1,161 +1,145 @@
 {
   "type": "object",
-  "strict": true,
+  "description": "Schema for work experience role optimization and feedback",
+  "additionalProperties": false,
+  "required": ["status", "data", "errors"],
   "properties": {
     "status": {
       "type": "string",
-      "enum": [
-        "success",
-        "errors",
-        "partial"
-      ],
-      "description": "Processing status of the request (success, error, or partial completion)"
+      "enum": ["success", "errors", "partial"],
+      "description": "Processing status"
     },
     "errors": {
       "type": "array",
+      "nullable": true,
       "items": {
         "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message", "severity"],
         "properties": {
           "code": {
             "type": "string",
-            "description": "Error code identifier for programmatic handling"
+            "description": "Error code identifier"
           },
           "message": {
             "type": "string",
-            "description": "Human-readable error description"
-          },
-          "field": {
-            "type": "string",
-            "description": "Specific field that triggered the error"
+            "description": "Human-readable error message"
           },
           "severity": {
             "type": "string",
-            "enum": [
-              "error",
-              "warning"
-            ],
-            "description": "Error severity level (critical error or advisory warning)"
+            "enum": ["error", "warning"],
+            "default": "error"
           }
-        },
-        "required": [
-          "code",
-          "message",
-          "field",
-          "severity"
-        ]
-      },
-      "nullable": true,
-      "description": "List of errors encountered during processing, null if no errors"
+        }
+      }
     },
     "data": {
       "type": "object",
+      "additionalProperties": false,
+      "required": ["company", "roles", "current", "feedback", "start", "end", "summary", "highlights"],
       "properties": {
         "company": {
           "type": "string",
-          "description": "Full legal company name without suffixes (unless part of common name)"
+          "description": "Company name without legal suffixes",
+          "maxLength": 100
         },
         "start": {
           "type": "string",
           "nullable": true,
-          "description": "Overall employment start date in 'MMM YYYY' format (or YYYY if only year mentioned)"
+          "description": "Overall employment start date (MMM YYYY or YYYY)",
+          "pattern": "^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s\\d{4}|\\d{4}$"
         },
         "end": {
           "type": "string",
           "nullable": true,
-          "description": "Overall employment end date in 'MMM YYYY' format (null if current position)"
+          "description": "Overall employment end date (MMM YYYY or YYYY)",
+          "pattern": "^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s\\d{4}|\\d{4}$"
         },
         "current": {
           "type": "boolean",
-          "description": "Indicates if this is a current position (true) or past position (false)"
+          "description": "Whether this is a current position"
         },
         "summary": {
           "type": "string",
           "nullable": true,
-          "description": "Concise overview of responsibilities (max 400 chars) relevant to target role"
+          "description": "Concise overview of responsibilities",
+          "maxLength": 400
         },
         "highlights": {
           "type": "array",
-          "items": {
-            "type": "string"
-          },
           "nullable": true,
-          "description": "Key achievements (max 6, 200 chars each) with measurable impact and STAR format"
+          "description": "Key STAR-formatted achievements with measurable impact",
+          "items": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "maxItems": 6,
+          "uniqueItems": true
         },
         "roles": {
           "type": "array",
+          "description": "Positions held at this company",
           "items": {
             "type": "object",
+            "additionalProperties": false,
+            "required": ["title", "start", "end", "current"],
             "properties": {
               "title": {
                 "type": "string",
-                "description": "Exact job title with standardized abbreviations"
+                "description": "Standardized job title",
+                "maxLength": 100
               },
               "start": {
                 "type": "string",
                 "nullable": true,
-                "description": "Role-specific start date in 'MMM YYYY' format (or YYYY if only year mentioned)"
+                "description": "Role start date (MMM YYYY or YYYY)",
+                "pattern": "^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s\\d{4}|\\d{4}$"
               },
               "end": {
                 "type": "string",
                 "nullable": true,
-                "description": "Role-specific end date in 'MMM YYYY' format (null if current role)"
+                "description": "Role end date (MMM YYYY or YYYY)",
+                "pattern": "^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s\\d{4}|\\d{4}$"
               },
               "current": {
                 "type": "boolean",
-                "nullable": true,
-                "description": "Indicates if this specific role is current (true) or past (false)"
+                "description": "Whether this specific role is current"
               }
-            },
-            "required": [
-              "title",
-              "start",
-              "end",
-              "current"
-            ]
+            }
           },
-          "description": "All positions held at this company with individual dates"
+          "minItems": 1,
+          "maxItems": 10
         },
         "feedback": {
           "type": "object",
+          "additionalProperties": false,
+          "required": ["strengths", "areas_to_improve"],
           "properties": {
             "strengths": {
               "type": "array",
+              "description": "Effective aspects of the role description",
               "items": {
-                "type": "string"
+                "type": "string",
+                "maxLength": 200
               },
-              "description": "Effective aspects of the role description"
+              "minItems": 1,
+              "maxItems": 5,
+              "uniqueItems": true
             },
             "areas_to_improve": {
               "type": "array",
+              "description": "Improvement suggestions",
               "items": {
-                "type": "string"
+                "type": "string",
+                "maxLength": 200
               },
-              "description": "Suggestions to enhance role relevance to target position"
+              "minItems": 1,
+              "maxItems": 5,
+              "uniqueItems": true
             }
-          },
-          "required": [
-            "strengths",
-            "areas_to_improve"
-          ],
-          "description": "Evaluation of role description quality and alignment with target position"
+          }
         }
-      },
-      "required": [
-        "company",
-        "roles",
-        "start",
-        "end",
-        "current",
-        "summary",
-        "highlights",
-        "feedback"
-      ],
-      "description": "Container for optimized work experience and evaluation feedback"
+      }
     }
-  },
-  "required": [
-    "status",
-    "errors",
-    "data"
-  ]
+  }
 }
