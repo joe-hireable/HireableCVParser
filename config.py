@@ -35,7 +35,11 @@ ALLOWED_DOMAINS = [
     'bubble-io.s3.amazonaws.com',  # Bubble.io S3 storage
     'bubble-io-files.s3.amazonaws.com',  # Bubble.io file storage
     'bubble-io-files-prod.s3.amazonaws.com',  # Bubble.io production file storage
-    'bubble-io-files-staging.s3.amazonaws.com'  # Bubble.io staging file storage
+    'bubble-io-files-staging.s3.amazonaws.com',  # Bubble.io staging file storage
+    'hireable-cv-branding.lovable.app', # Added new allowed domain
+    'localhost',               # Local development
+    '172.30.16.1',             # Local network development
+    '192.168.1.113'            # Local network development
 ]
 
 # Logging configuration

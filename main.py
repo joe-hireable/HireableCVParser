@@ -101,10 +101,14 @@ def validate_url(url: str) -> None:
         if not parsed_url.scheme in ['http', 'https']:
             raise ValueError(f"Invalid URL scheme: {url}. Only HTTP/HTTPS URLs are allowed")
             
-        # Check if the domain is in the allowlist from config
-        domain = parsed_url.netloc.lower()
-        if not any(domain.endswith(allowed_domain) for allowed_domain in config.ALLOWED_DOMAINS):
-            raise ValueError(f"Untrusted domain: {domain}. Only URLs from allowed domains are permitted")
+        # Check if the hostname is in the allowlist from config
+        hostname = parsed_url.hostname.lower() if parsed_url.hostname else ''
+        if not hostname:
+            raise ValueError(f"Could not extract hostname from URL: {url}")
+
+        # Perform exact match against allowed domains
+        if not any(hostname == allowed_domain for allowed_domain in config.ALLOWED_DOMAINS):
+            raise ValueError(f"Untrusted hostname: {hostname}. Only URLs from allowed domains are permitted")
             
     except Exception as e:
         raise ValueError(f"Invalid URL format: {url}. Error: {str(e)}")
@@ -190,7 +194,7 @@ def cv_optimizer(request):
                 try:
                     request_json = request.get_json()
                     cv_url = request_json.get('cv_url')
-                    jd_url = request_json.get('jd_url')
+                    jd = request_json.get('jd')
                     task = request_json.get('task', 'parsing')
                     section = request_json.get('section')
                     model = request_json.get('model', config.DEFAULT_MODEL)
@@ -214,13 +218,62 @@ def cv_optimizer(request):
                     # Validate URLs if provided
                     if cv_url:
                         validate_url(cv_url)
-                    if jd_url:
-                        validate_url(jd_url)
                     
-                    # Process documents
-                    with tracer.start_span("document_processing") as doc_span:
-                        cv_content = doc_processor.download_and_process(cv_url)
-                        jd_content = doc_processor.download_and_process(jd_url) if jd_url else ""
+                    # Process jd input based on format
+                    if jd:
+                        if isinstance(jd, str):
+                            if jd.startswith(('http://', 'https://', 'gs://')):
+                                # Handle URL/GCS path
+                                validate_url(jd)
+                                
+                                if jd.startswith('gs://'):
+                                    # GCS path - assume it's already a PDF
+                                    jd_content = doc_processor.download_and_process(jd)
+                                    file_uri = jd
+                                else:
+                                    # HTTP(S) URL - could be webpage or PDF
+                                    if jd.lower().endswith('.pdf'):
+                                        # Direct PDF URL
+                                        jd_content = doc_processor.download_and_process(jd)
+                                        # Save to GCS and get the path
+                                        file_uri = storage_client.save_url_to_gcs(jd, f"jds/{uuid.uuid4()}.pdf")
+                                    else:
+                                        # Webpage URL - convert to PDF
+                                        pdf_path = f"jds/{uuid.uuid4()}.pdf"
+                                        file_uri = storage_client.save_webpage_as_pdf(jd, pdf_path)
+                                        jd_content = doc_processor.download_and_process(file_uri)
+                                
+                                # Use both text content and PDF in Gemini
+                                response = gemini_client.generate_content(
+                                    prompt=user_prompt,
+                                    response_schema=schema_model,
+                                    system_prompt=system_prompt,
+                                    model=model,
+                                    file_uri=file_uri,
+                                    mime_type="application/pdf"
+                                )
+                            else:
+                                # Handle raw text input
+                                jd_content = jd
+                                response = gemini_client.generate_content(
+                                    prompt=user_prompt,
+                                    response_schema=schema_model,
+                                    system_prompt=system_prompt,
+                                    model=model
+                                )
+                        else:
+                            raise ValueError("Invalid jd format. Must be a string containing URL, GCS path, or raw text")
+                    else:
+                        jd_content = ""
+                        response = gemini_client.generate_content(
+                            prompt=user_prompt,
+                            response_schema=schema_model,
+                            system_prompt=system_prompt,
+                            model=model
+                        )
+                    
+                    # Process CV (unchanged)
+                    cv_content = doc_processor.download_and_process(cv_url)
                     
                     # Fetch resources with Pydantic model
                     system_prompt, user_prompt_template, few_shot_examples, schema_model = fetch_resources(task)

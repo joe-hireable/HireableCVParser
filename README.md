@@ -143,8 +143,8 @@ This cloud function serves as an API for CV (resume) optimization and analysis u
 
 ```json
 {
-  "cv_url": "https://example.com/path/to/cv.pdf",
-  "jd_url": "https://example.com/path/to/job_description.pdf",
+  "cv_url": "https://example.com/path/to/resume.pdf",
+  "jd": "https://example.com/path/to/job_description.pdf",
   "task": "parsing|ps|cs|ka|role|scoring",
   "section": "optional_section_name"
 }
