@@ -14,9 +14,10 @@ eggs/
 lib/
 lib64/
 parts/
-prompts/*
-schemas/*
-few_shot_examples/*
+.env.yaml
+prompts/
+schemas/
+few_shot_examples/
 sdist/
 keys/
 var/

@@ -25,23 +25,6 @@ FEW_SHOT_EXAMPLES_DIR = "few_shot_examples"
 # Task validation
 ALLOWED_TASKS = ["parsing", "ps", "cs", "ka", "role", "scoring"]
 
-# URL validation
-ALLOWED_DOMAINS = [
-    'storage.googleapis.com',  # Google Cloud Storage
-    'example.com',             # Example domain
-    'githubusercontent.com',   # GitHub content
-    'raw.githubusercontent.com', # GitHub raw content
-    'bubble.io',               # Bubble.io main domain
-    'bubble-io.s3.amazonaws.com',  # Bubble.io S3 storage
-    'bubble-io-files.s3.amazonaws.com',  # Bubble.io file storage
-    'bubble-io-files-prod.s3.amazonaws.com',  # Bubble.io production file storage
-    'bubble-io-files-staging.s3.amazonaws.com',  # Bubble.io staging file storage
-    'hireable-cv-branding.lovable.app', # Added new allowed domain
-    'localhost',               # Local development
-    '172.30.16.1',             # Local network development
-    '192.168.1.113'            # Local network development
-]
-
 # Logging configuration
 LOG_LEVEL = "INFO"
 

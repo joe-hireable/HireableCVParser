@@ -88,6 +88,28 @@ class StorageClient:
             logger.error(f"Error downloading file from GCS: {e}")
             return None
 
+    def save_bytes_to_gcs(self, file_bytes: bytes, gcs_path: str, content_type: Optional[str] = None) -> Optional[str]:
+        """
+        Upload raw file bytes to GCS.
+
+        Args:
+            file_bytes: The bytes of the file to upload.
+            gcs_path: The full path within the GCS bucket (e.g., 'uploads/user123/cv.pdf').
+            content_type: The MIME type of the file (e.g., 'application/pdf').
+
+        Returns:
+            The gs:// URI of the uploaded file, or None if upload fails.
+        """
+        try:
+            blob = self.bucket.blob(gcs_path)
+            blob.upload_from_string(file_bytes, content_type=content_type)
+            gcs_uri = f"gs://{self.bucket_name}/{gcs_path}"
+            logger.info(f"Successfully uploaded bytes to {gcs_uri}")
+            return gcs_uri
+        except Exception as e:
+            logger.error(f"Error uploading bytes to GCS path {gcs_path}: {e}")
+            return None
+
     def read_file(self, path: str) -> Optional[str]:
         """
         Read a file from GCS.

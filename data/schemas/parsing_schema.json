@@ -196,11 +196,11 @@
         },
         "experience": {
           "type": "array",
-          "description": "Professional work experience",
+          "description": "Professional work experience, including company details and specific roles held.",
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["company", "start", "end", "current", "summary", "highlights"],
+            "required": ["company", "start", "end", "current", "summary", "highlights", "roles"],
             "properties": {
               "company": {
                 "type": "string",
@@ -208,33 +208,65 @@
               },
               "start": {
                 "type": "string",
-                "description": "Start date of employment",
+                "description": "Overall start date of employment at the company (e.g., MMM YYYY or YYYY)",
                 "nullable": true
               },
               "end": {
                 "type": "string",
-                "description": "End date of employment (if applicable)",
+                "description": "Overall end date of employment at the company (e.g., MMM YYYY or YYYY)",
                 "nullable": true
               },
               "current": {
                 "type": "boolean",
-                "description": "Whether this is the current position"
+                "description": "Whether this is the current company"
               },
               "summary": {
                 "type": "string",
-                "description": "Brief summary of responsibilities",
+                "description": "Brief summary of overall responsibilities or contributions at the company",
                 "nullable": true
               },
               "highlights": {
                 "type": "array",
-                "description": "Key achievements or responsibilities",
+                "description": "Key achievements or responsibilities during the entire tenure at the company",
                 "items": {
                   "type": "string"
                 },
                 "nullable": true
+              },
+              "roles": {
+                 "type": "array",
+                 "description": "Specific positions held at this company",
+                 "items": {
+                   "type": "object",
+                   "additionalProperties": false,
+                   "required": ["title", "start", "end", "current"],
+                   "properties": {
+                     "title": {
+                       "type": "string",
+                       "description": "Job title for this specific role"
+                     },
+                     "start": {
+                       "type": "string",
+                       "description": "Start date in this role (e.g., MMM YYYY or YYYY)",
+                       "nullable": true
+                     },
+                     "end": {
+                       "type": "string",
+                       "description": "End date in this role (e.g., MMM YYYY or YYYY)",
+                       "nullable": true
+                     },
+                     "current": {
+                       "type": "boolean",
+                       "description": "Whether this specific role is current"
+                     }
+                   }
+                 },
+                 "minItems": 1, // Usually at least one role per company entry
+                 "nullable": false // Experience entry should have roles
               }
             }
-          }
+          },
+          "nullable": true // The entire experience section might be null
         },
         "education": {
           "type": "array",

@@ -57,6 +57,14 @@ class BaseResponseSchema(BaseModel):
     errors: Optional[List[ErrorModel]] = Field(default=None, description="List of errors encountered")
 
 # Parsing Schema Models
+
+# New Model for Roles within Parsing Experience
+class ParsingRoleModel(BaseModel):
+    title: str = Field(description="Job title for this specific role")
+    start: Optional[str] = Field(description="Start date in this role (e.g., MMM YYYY or YYYY)")
+    end: Optional[str] = Field(description="End date in this role (e.g., MMM YYYY or YYYY)")
+    current: bool = Field(description="Whether this specific role is current")
+
 class LinkModel(BaseModel):
     title: Optional[str] = Field(description="Link title or platform name")
     url: Optional[str] = Field(description="Full URL of the link")
@@ -77,11 +85,12 @@ class LanguageModel(BaseModel):
 
 class ExperienceModel(BaseModel):
     company: str = Field(description="Company or organization name")
-    start: Optional[str] = Field(description="Start date of employment")
-    end: Optional[str] = Field(description="End date of employment")
-    current: bool = Field(description="Whether this is the current position")
-    summary: Optional[str] = Field(description="Brief summary of responsibilities")
-    highlights: Optional[List[str]] = Field(description="Key achievements or responsibilities")
+    start: Optional[str] = Field(description="Overall start date of employment at the company")
+    end: Optional[str] = Field(description="Overall end date of employment at the company")
+    current: bool = Field(description="Whether this is the current company")
+    summary: Optional[str] = Field(description="Brief summary of overall responsibilities at the company")
+    highlights: Optional[List[str]] = Field(description="Key achievements during the tenure at the company")
+    roles: List[ParsingRoleModel] = Field(description="Specific positions held at this company", min_items=1)
 
 class QualificationModel(BaseModel):
     qualification: Optional[str] = Field(description="Degree or certification type")

@@ -296,4 +296,32 @@ Before submitting a pull request:
 1. Run the test suite: `python -m pytest tests/`
 2. Test the function locally
 3. Ensure all linting checks pass
-4. Update the README if needed 
+4. Update the README if needed
+
+### Environment Variables
+
+- `GCS_BUCKET_NAME`: Your Google Cloud Storage bucket name.
+- `PROJECT_ID`: Your Google Cloud Project ID.
+- `LOCATION`: The Google Cloud region for services like Vertex AI.
+- `VERTEX_AI_ENABLED`: Set to `true` to use Vertex AI, `false` for Google AI Studio (requires `GOOGLE_API_KEY`).
+- `SUPABASE_JWT_SECRET`: **Required for frontend.** Your Supabase JWT secret (store securely!).
+- `SUPABASE_PROJECT_REF`: **Required for frontend.** Your Supabase project reference.
+- `ENVIRONMENT`: Set to `development` or `production`.
+
+#### `.env` File Configuration
+
+Create a `.env` file in the root directory by copying `.env.template`:
+
+```bash
+cp .env.template .env
+```
+
+Update the `.env` file with your specific values:
+
+- **GCS_BUCKET_NAME**: Your bucket name.
+- **PROJECT_ID**: Your Google Cloud project ID.
+- **LOCATION**: The region for your function (e.g., `europe-west9`).
+- **VERTEX_AI_ENABLED**: `true` or `false`.
+- **SUPABASE_JWT_SECRET**: Your Supabase JWT secret.
+- **SUPABASE_PROJECT_REF**: Your Supabase project reference.
+- **ENVIRONMENT**: `development` or `production`. 
