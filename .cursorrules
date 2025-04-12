@@ -1,0 +1,98 @@
+# .cursorrules - Configuration for Cursor AI in the joe-hireable-hireablecvparser project
+
+# General rules for AI interaction
+rules:
+  - id: project-goal
+    description: >
+      The primary goal is to update this backend (`joe-hireable-hireablecvparser`)
+      to integrate seamlessly with the `cv-branding-buddy` frontend and the
+      `CV Builder 2.0` Figma prototype. Prioritize changes based on frontend
+      requirements and Figma design. Use the tech stack defined below.
+    enforcementLevel: high # low | medium | high
+  - id: tech-stack
+    description: >
+      Adhere to the target tech stack: Python 3.11+, Pydantic, google-genai (VertexAI),
+      Google ADK (explore integration), Supabase (JWT Auth), GCS (Secrets/Files).
+      Refactor existing code towards this stack where appropriate (e.g., Gemini client, secrets).
+    enforcementLevel: high
+  - id: code-style
+    description: >
+      Follow Python best practices (PEP 8). Use Ruff for linting and Black-compatible
+      formatting (via `ruff format`). Ensure type hints are used where appropriate.
+    enforcementLevel: medium
+  - id: ask-questions
+    description: >
+      Ask clarifying questions before making significant architectural changes or
+      implementing complex logic. Clearly state assumptions if any are made.
+    enforcementLevel: medium
+  - id: focus-backend
+    description: >
+      Remember that all code changes should be applied within *this* repository
+      (`joe-hireable-hireablecvparser`). The frontend repo and Figma are for context only.
+    enforcementLevel: high
+
+# Indexing rules for providing context to the AI
+indexing:
+  # Files and directories essential for understanding the codebase
+  codebaseContext:
+    - "**/*.py" # All python files
+    - "requirements.txt"
+    - "Dockerfile"
+    - ".env.template"
+    - "README.md"
+    - "config.py"
+    - "data/prompts/*.md" # Core LLM instructions
+    - "data/schemas/*.json" # Core LLM output structures
+    - "data/few_shot_examples/*.md" # Examples guiding LLM behavior
+    - ".gcloudignore"
+  # Patterns to ignore during indexing
+  ignoredPatterns:
+    - "venv/"
+    - "**/.venv/"
+    - "**/.git/"
+    - "**/__pycache__/"
+    - "*.pyc"
+  # Links to related external resources for context
+  relatedContext:
+    - type: repo # GitHub repository
+      identifier: cv-branding-buddy-frontend
+      url: https://github.com/joe-hireable/cv-branding-buddy
+      description: The React frontend this backend needs to integrate with. Check src/services/api.ts, src/types/cv.ts, src/contexts/, and relevant UI components.
+    - type: docs # Figma prototype
+      identifier: cv-builder-figma
+      url: https://www.figma.com/proto/PB0Jo3d9kLJpHS3dhgmvne/CV-Builder-2.0---Internal?node-id=2134-17084&starting-point-node-id=2134%3A17366
+      description: Figma prototype for CV Builder 2.0. Defines target UI/UX and features.
+    - type: docs # ADK Documentation
+      identifier: adk-docs
+      url: https://google.github.io/adk-docs/
+      description: Documentation for the Google Agent Development Kit (ADK).
+    - type: docs # Gemini API Documentation
+      identifier: gemini-api-docs
+      url: https://ai.google.dev/gemini-api/docs/
+      description: Documentation for the Gemini API and google-genai library.
+
+# Custom commands callable via Cursor's command palette or chat (@Terminal)
+commands:
+  - name: Install Dependencies
+    description: Installs Python dependencies using pip.
+    command: pip install -r requirements.txt
+  - name: Lint and Format
+    description: Runs Ruff to check for linting errors and format the code.
+    command: ruff check . && ruff format .
+  - name: Run Locally
+    description: >
+      Starts the function locally using functions-framework. Requires GOOGLE_APPLICATION_CREDENTIALS
+      env var to be set and a .env file populated from .env.template.
+    command: functions-framework --target=cv_optimizer
+  - name: Deploy to Cloud Run
+    description: >
+      Deploys the function to Google Cloud Functions (Gen 2). Requires gcloud SDK to be
+      installed and configured (auth login, project set).
+    command: gcloud functions deploy cv_optimizer \
+      --gen2 \
+      --runtime=python311 \
+      --region=europe-west2 \
+      --source=. \
+      --entry-point=cv_optimizer \
+      --trigger-http \
+      --allow-unauthenticated

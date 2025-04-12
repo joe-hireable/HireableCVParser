@@ -1,6 +1,6 @@
 # CV Optimizer Cloud Function
 
-A Google Cloud Function that uses Gemini 2.0 Flash to analyze, optimize, and provide insights for CVs (resumes) based on job descriptions.
+A Google Cloud Function that uses Gemini 2.0 to analyze, optimize, and provide insights for CVs (resumes) based on job descriptions.
 
 ## 📋 Table of Contents
 
@@ -8,30 +8,30 @@ A Google Cloud Function that uses Gemini 2.0 Flash to analyze, optimize, and pro
 - [Features](#features)
 - [Prerequisites](#prerequisites)
 - [Getting Started](#getting-started)
-  - [Local Development](#local-development)
-  - [Deployment](#deployment)
 - [API Usage](#api-usage)
 - [Project Structure](#project-structure)
 - [Configuration](#configuration)
-- [How It Works](#how-it-works)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
+- [New Features](#new-features)
+- [Deployment](#deployment)
+- [Migration Guide](#migration-guide)
 
 ## 🔍 Overview
 
-This cloud function serves as an API for CV (resume) optimization and analysis using Google's Gemini 2.0 Flash Lite AI model. It can parse CVs, analyze them against job descriptions, and provide actionable feedback and optimization suggestions.
+This cloud function serves as an API for CV (resume) optimization and analysis using Google's Gemini 2.0 models. It can parse CVs, analyze them against job descriptions, and provide actionable feedback and optimization suggestions.
 
 ## ✨ Features
 
-- **CV Parsing**: Extract structured data from CV documents (PDF or DOCX)
+- **CV Parsing**: Extract structured data from uploaded CV documents (PDF or DOCX)
 - **Personal Statement Analysis**: Review and improve personal statements/profiles
 - **Key Achievements Analysis**: Analyze and enhance key achievements
 - **Core Skills Analysis**: Identify and optimize core skills sections
 - **Role Analysis**: Evaluate role descriptions and experience
 - **CV Scoring**: Score CVs against job descriptions for compatibility
 - **OpenTelemetry Integration**: Built-in tracing and monitoring
-- **Caching System**: Efficient document caching for improved performance
-- **Security Features**: URL validation and domain allowlisting
+- **Supabase Authentication**: JWT-based authentication for secure API access
+- **Google ADK Integration**: Support for complex, stateful interactions via Google Agent Development Kit
+- **Secret Manager Integration**: Secure storage for prompts, schemas, and examples
+- **Multipart Form Support**: File uploads directly via multipart/form-data
 - **Structured Logging**: JSON-formatted logs for better debugging
 
 ## 📋 Prerequisites
@@ -40,11 +40,8 @@ This cloud function serves as an API for CV (resume) optimization and analysis u
 - Google Cloud Platform account with billing enabled
 - Gemini API access (via Google Cloud AI Platform)
 - Google Cloud SDK installed (for deployment)
-- Basic understanding of:
-  - Python programming
-  - REST APIs
-  - Google Cloud Platform
-  - Git version control
+- Supabase project (for authentication)
+- (Optional) Google ADK agent configured
 
 ## 🚀 Getting Started
 
@@ -72,68 +69,40 @@ This cloud function serves as an API for CV (resume) optimization and analysis u
    pip install -r requirements.txt
    ```
 
-4. **Set up Google Cloud credentials**
-   - Create a service account in Google Cloud Console
-   - Download the JSON key file
-   - Set the environment variable:
-     ```bash
-     # On Windows (PowerShell)
-     $env:GOOGLE_APPLICATION_CREDENTIALS="path/to/your/credentials.json"
+4. **Set up environment variables**
+   ```bash
+   # Copy the template file
+   cp .env.template .env
+   
+   # Edit the .env file with your values
+   # Required:
+   # - PROJECT_ID, LOCATION, GCS_BUCKET_NAME
+   # - SUPABASE_JWT_SECRET, SUPABASE_PROJECT_REF (for auth)
+   ```
 
-     # On macOS/Linux
-     export GOOGLE_APPLICATION_CREDENTIALS="path/to/your/credentials.json"
-     ```
+5. **Set up Google Cloud credentials**
+   ```bash
+   # On Windows (PowerShell)
+   $env:GOOGLE_APPLICATION_CREDENTIALS="path/to/your/credentials.json"
 
-5. **Configure the project**
-   - Copy `config.py.example` to `config.py` (if available)
-   - Update the following settings in `config.py`:
-     - `PROJECT_ID`: Your Google Cloud project ID
-     - `GCS_BUCKET_NAME`: Your Google Cloud Storage bucket name
-     - `ALLOWED_DOMAINS`: Add any additional domains you need to access
+   # On macOS/Linux
+   export GOOGLE_APPLICATION_CREDENTIALS="path/to/your/credentials.json"
+   ```
 
 6. **Start the function locally**
    ```bash
    functions-framework --target=cv_optimizer
    ```
 
-7. **Test the function**
-   - The function will be available at http://localhost:8080
-   - Use tools like Postman or cURL to send requests
-   - Example test request:
-     ```bash
-     curl -X POST http://localhost:8080 \
-       -H "Content-Type: application/json" \
-       -d '{
-         "cv_url": "https://example.com/cv.pdf",
-         "task": "parsing"
-       }'
-     ```
-
-### Deployment
-
-1. **Configure Google Cloud SDK**
-   ```bash
-   gcloud auth login
-   gcloud config set project YOUR_PROJECT_ID
-   ```
-
-2. **Deploy the function**
-   ```bash
-   gcloud functions deploy cv_optimizer \
-     --gen2 \
-     --runtime=python311 \
-     --region=europe-west2 \
-     --source=. \
-     --entry-point=cv_optimizer \
-     --trigger-http \
-     --allow-unauthenticated
-   ```
-
-3. **Verify deployment**
-   - The function URL will be provided in the deployment output
-   - Test the deployed function using the same curl command as above
-
 ## 📡 API Usage
+
+### Authentication
+
+The API requires a Supabase JWT token in the Authorization header:
+
+```
+Authorization: Bearer <your-supabase-jwt-token>
+```
 
 ### Endpoint
 
@@ -141,41 +110,22 @@ This cloud function serves as an API for CV (resume) optimization and analysis u
 
 ### Request Format
 
-```json
-{
-  "cv_url": "https://example.com/path/to/resume.pdf",
-  "jd": "https://example.com/path/to/job_description.pdf",
-  "task": "parsing|ps|cs|ka|role|scoring",
-  "section": "optional_section_name"
-}
-```
+The API now accepts `multipart/form-data` with the following fields:
 
-### Task Types
+- `cv_file`: The CV document file (PDF or DOCX)
+- `task`: The task to perform (`parsing`, `ps`, `cs`, `ka`, `role`, `scoring`)
+- `jd`: (Optional) Job description text or URL
+- `section`: (Optional) Specific section to analyze
+- `model`: (Optional) Gemini model to use (defaults to `gemini-2.0-flash-001`)
 
-- `parsing`: Extract structured data from a CV
-- `ps`: Analyze and optimize Personal Statement
-- `cs`: Analyze and optimize Core Skills
-- `ka`: Analyze and optimize Key Achievements
-- `role`: Analyze and optimize Role descriptions
-- `scoring`: Score CV against job description
-
-### Response Format
-
-```json
-{
-  "status": "success|error|partial",
-  "errors": [
-    {
-      "code": "error_code",
-      "message": "Human readable message",
-      "field": "field_name",
-      "severity": "error|warning"
-    }
-  ],
-  "data": {
-    // Task-specific output data
-  }
-}
+Example cURL request:
+```bash
+curl -X POST https://YOUR_FUNCTION_URL \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "X-Request-ID: unique-request-id" \
+  -F "cv_file=@/path/to/your/cv.pdf" \
+  -F "task=parsing" \
+  -F "model=gemini-2.0-flash-001"
 ```
 
 ## 📂 Project Structure
@@ -191,23 +141,15 @@ root/
 │   ├── __init__.py
 │   ├── document_processor.py  # Document handling
 │   ├── storage.py             # GCS operations
-│   └── gemini_client.py       # Gemini API client
-├── prompts/                 # Prompt templates
-│   ├── system_prompt.md     # System instructions
-│   ├── parsing_user_prompt.md
-│   ├── ps_user_prompt.md    # Personal Statement prompts
-│   ├── cs_user_prompt.md    # Core Skills prompts
-│   ├── ka_user_prompt.md    # Key Achievements prompts
-│   └── role_user_prompt.md  # Role analysis prompts
-├── schemas/                 # JSON output schemas
-│   ├── parsing_schema.json
-│   ├── ps_schema.json
-│   ├── cs_schema.json
-│   ├── ka_schema.json
-│   └── role_schema.json
-├── few_shot_examples/       # Example data for model training
+│   ├── gemini_client.py       # Gemini API client
+│   └── adk_client.py          # ADK integration
+├── models/                  # Data models
+│   └── schemas.py           # Pydantic schemas
+├── data/                    # Resource files
+│   ├── prompts/             # Prompt templates
+│   ├── schemas/             # JSON output schemas
+│   └── few_shot_examples/   # Example data for model training
 ├── tests/                   # Test files
-├── deploy/                  # Deployment scripts
 └── docs/                    # Documentation
 ```
 
@@ -216,112 +158,103 @@ root/
 Key configuration settings in `config.py`:
 
 - **GCS_BUCKET_NAME**: Google Cloud Storage bucket for storing documents
-- **CV_FOLDER**: Folder for storing CVs in GCS
-- **JD_FOLDER**: Folder for storing Job Descriptions in GCS
 - **PROJECT_ID**: Google Cloud Project ID
 - **LOCATION**: Google Cloud region (default: europe-west9)
-- **MODEL_NAME**: Gemini model version to use
+- **DEFAULT_MODEL**: Gemini model version to use
+- **SUPPORTED_MODELS**: List of supported Gemini models
 - **VERTEX_AI_ENABLED**: Whether to use Vertex AI (or direct Gemini API)
-- **ALLOWED_TASKS**: List of valid task types
-- **ALLOWED_DOMAINS**: List of trusted domains for URL validation
-- **CACHE_TTL_DAYS**: Number of days to keep documents in cache
-- **ALLOWED_CONTENT_TYPES**: Supported document types (PDF, DOCX)
+- **USE_ADK**: Whether to use Google Agent Development Kit
+- **ADK_AGENT_LOCATION**: Location path to the ADK agent
+- **USE_SECRETS_MANAGER**: Whether to use Secret Manager for resources
+- **PROMPTS_SECRET_PREFIX**: Prefix for prompt secrets
+- **SCHEMAS_SECRET_PREFIX**: Prefix for schema secrets
+- **EXAMPLES_SECRET_PREFIX**: Prefix for few-shot examples secrets
+- **SUPABASE_JWT_SECRET**: Secret for validating Supabase JWT tokens
+- **SUPABASE_PROJECT_REF**: Supabase project reference
 
-## 🛠️ How It Works
+## 🆕 New Features
 
-1. **Document Processing**:
-   - The function receives URLs to CV and job description documents
-   - `DocumentProcessor` downloads and extracts text from these documents
-   - Documents are stored in Google Cloud Storage for reference
-   - Caching system prevents redundant downloads
+### Google Agent Development Kit (ADK) Integration
+The CV Optimizer now supports processing with Google's Agent Development Kit (ADK). This allows for more complex and stateful interactions with the LLM. To enable ADK:
 
-2. **AI Processing**:
-   - Based on the requested task, the function loads appropriate prompts and schemas
-   - Text is processed by the Gemini AI model with few-shot examples
-   - The response is structured according to the corresponding JSON schema
-   - OpenTelemetry traces the entire process for monitoring
+1. Set `USE_ADK="true"` in your environment variables
+2. Specify the ADK agent location with `ADK_AGENT_LOCATION`
+3. Follow the [ADK documentation](https://google.github.io/adk-docs/) to create and configure your agent
 
-3. **Response**:
-   - The structured data is returned to the client as a JSON response
-   - All responses follow a consistent format with status, errors, and data fields
-   - Errors are properly categorized and include helpful messages
+### Secret Manager Integration
+Prompts, schemas, and few-shot examples can now be stored in Google Cloud Secret Manager instead of files or GCS. This provides better security and management for sensitive prompts and configurations.
 
-## 🔧 Troubleshooting
+To enable Secret Manager:
+1. Set `USE_SECRETS_MANAGER="true"` in your environment variables
+2. Configure the secret prefixes with `PROMPTS_SECRET_PREFIX`, `SCHEMAS_SECRET_PREFIX`, and `EXAMPLES_SECRET_PREFIX`
+3. Create secrets in Secret Manager with the appropriate names:
+   - `{PROMPTS_SECRET_PREFIX}system-prompt` - For system prompt
+   - `{PROMPTS_SECRET_PREFIX}{task}-user-prompt` - For task-specific user prompts
+   - `{SCHEMAS_SECRET_PREFIX}{task}-schema` - For task-specific schemas
+   - `{EXAMPLES_SECRET_PREFIX}{task}-examples` - For task-specific few-shot examples
 
-### Common Issues
+### Supabase Authentication
+The API now requires JWT authentication through Supabase. This secures the API and allows for user-specific processing and data isolation.
 
-1. **Missing Credentials**:
-   - Ensure GOOGLE_APPLICATION_CREDENTIALS is set correctly
-   - Verify the service account has necessary permissions:
-     - Gemini API access
-     - Google Cloud Storage access
-     - Cloud Functions access (for deployment)
+### File Upload Support
+The API now accepts direct file uploads via `multipart/form-data` instead of requiring CV documents to be accessible via URL. This simplifies integration with frontend applications and improves security.
 
-2. **Deployment Failures**:
-   - Check that all dependencies are properly listed in requirements.txt
-   - Ensure all required directories are included in the deployment
-   - Verify your Google Cloud project has billing enabled
+### Pydantic V2 Support
+The codebase has been updated to use Pydantic v2, which provides better performance and additional features for data validation.
 
-3. **Runtime Errors**:
-   - Check Cloud Function logs through Google Cloud Console
-   - Verify resource files (prompts, schemas, examples) are properly formatted
-   - Check OpenTelemetry traces for detailed execution flow
+### Enhanced Gemini Integration
+The Gemini client has been updated to support the latest features of the google-genai library, including:
+- Improved error handling
+- Better JSON response parsing
+- Support for newer models (gemini-2.0-pro-001, gemini-2.0-flash-001)
 
-4. **URL Validation Errors**:
-   - Ensure URLs are from allowed domains
-   - Check if the URLs are accessible
-   - Verify the content type is supported (PDF or DOCX)
-
-## 👥 Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Commit your changes: `git commit -am 'Add some feature'`
-4. Push to the branch: `git push origin feature-name`
-5. Submit a pull request
-
-### Development Guidelines
-
-- Follow PEP 8 style guide
-- Add docstrings to all functions and classes
-- Include unit tests for new features
-- Update documentation as needed
-- Keep commits focused and atomic
-
-### Testing
-
-Before submitting a pull request:
-1. Run the test suite: `python -m pytest tests/`
-2. Test the function locally
-3. Ensure all linting checks pass
-4. Update the README if needed
+## 📦 Deployment
 
 ### Environment Variables
+See `.env.template` for all required and optional environment variables. The following variables are required for deployment:
 
-- `GCS_BUCKET_NAME`: Your Google Cloud Storage bucket name.
-- `PROJECT_ID`: Your Google Cloud Project ID.
-- `LOCATION`: The Google Cloud region for services like Vertex AI.
-- `VERTEX_AI_ENABLED`: Set to `true` to use Vertex AI, `false` for Google AI Studio (requires `GOOGLE_API_KEY`).
-- `SUPABASE_JWT_SECRET`: **Required for frontend.** Your Supabase JWT secret (store securely!).
-- `SUPABASE_PROJECT_REF`: **Required for frontend.** Your Supabase project reference.
-- `ENVIRONMENT`: Set to `development` or `production`.
+- `PROJECT_ID` - Your Google Cloud Project ID
+- `GCS_BUCKET_NAME` - Your Google Cloud Storage bucket
+- `SUPABASE_JWT_SECRET` - Your Supabase JWT secret
+- `SUPABASE_PROJECT_REF` - Your Supabase project reference
 
-#### `.env` File Configuration
-
-Create a `.env` file in the root directory by copying `.env.template`:
+### Deploying as a GCP Function
+Deploy with sufficient memory and timeout for LLM operations:
 
 ```bash
-cp .env.template .env
+gcloud functions deploy cv_optimizer \
+  --gen2 \
+  --runtime=python311 \
+  --region=europe-west2 \
+  --source=. \
+  --entry-point=cv_optimizer \
+  --trigger-http \
+  --memory=2048MB \
+  --timeout=540s \
+  --set-env-vars="USE_ADK=true,ADK_AGENT_LOCATION=projects/hireable-places/locations/europe-west2/agents/cv-optimizer-agent" \
+  --allow-unauthenticated
 ```
 
-Update the `.env` file with your specific values:
+For PowerShell, use this single-line command:
+```powershell
+gcloud functions deploy cv_optimizer --gen2 --runtime=python311 --region=europe-west2 --source=. --entry-point=cv_optimizer --trigger-http --memory=2048MB --timeout=540s --set-env-vars="USE_ADK=true,ADK_AGENT_LOCATION=projects/hireable-places/locations/europe-west2/agents/cv-optimizer-agent" --allow-unauthenticated
+```
 
-- **GCS_BUCKET_NAME**: Your bucket name.
-- **PROJECT_ID**: Your Google Cloud project ID.
-- **LOCATION**: The region for your function (e.g., `europe-west9`).
-- **VERTEX_AI_ENABLED**: `true` or `false`.
-- **SUPABASE_JWT_SECRET**: Your Supabase JWT secret.
-- **SUPABASE_PROJECT_REF**: Your Supabase project reference.
-- **ENVIRONMENT**: `development` or `production`. 
+## 🔄 Migration Guide
+If migrating from a previous version, follow these steps:
+
+1. Update dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. Update your environment variables:
+   - Add Supabase authentication variables
+   - Configure ADK and Secret Manager settings if needed
+
+3. Update client code to:
+   - Send `multipart/form-data` requests with file uploads
+   - Include Supabase JWT authentication headers
+   - Handle the new response format
+
+4. If using ADK or Secret Manager, configure the respective resources in Google Cloud 

@@ -2,6 +2,10 @@ import logging
 from google.cloud import storage
 from typing import Optional
 import os
+import requests
+from urllib.parse import urlparse
+import tempfile
+import subprocess
 
 logger = logging.getLogger(__name__)
 
@@ -144,4 +148,112 @@ class StorageClient:
             return True
         except Exception as e:
             logger.error(f"Error writing file {path}: {str(e)}")
-            return False 
+            return False
+    
+    def save_url_to_gcs(self, url: str, gcs_path: str) -> Optional[str]:
+        """
+        Download a file from a URL and save it to GCS.
+        
+        Args:
+            url: URL of the file to download
+            gcs_path: Path in GCS where to save the file
+            
+        Returns:
+            GCS URI of the saved file or None if operation fails
+        """
+        try:
+            # Validate URL format
+            parsed_url = urlparse(url)
+            if not parsed_url.scheme or not parsed_url.netloc:
+                logger.error(f"Invalid URL format: {url}")
+                return None
+                
+            # Download file from URL
+            response = requests.get(url, stream=True, timeout=30)
+            response.raise_for_status()  # Raise exception if status code is not 200
+            
+            # Determine content type
+            content_type = response.headers.get('Content-Type')
+            
+            # Upload to GCS
+            blob = self.bucket.blob(gcs_path)
+            blob.upload_from_string(response.content, content_type=content_type)
+            
+            # Return GCS URI
+            gcs_uri = f"gs://{self.bucket_name}/{gcs_path}"
+            logger.info(f"Successfully saved URL {url} to {gcs_uri}")
+            return gcs_uri
+            
+        except requests.RequestException as e:
+            logger.error(f"Error downloading from URL {url}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Error saving URL to GCS: {e}")
+            return None
+    
+    def save_webpage_as_pdf(self, url: str, gcs_path: str) -> Optional[str]:
+        """
+        Convert a webpage to PDF and save it to GCS.
+        
+        Args:
+            url: URL of the webpage
+            gcs_path: Path in GCS where to save the PDF
+            
+        Returns:
+            GCS URI of the saved PDF or None if operation fails
+        """
+        try:
+            # Validate URL format
+            parsed_url = urlparse(url)
+            if not parsed_url.scheme or not parsed_url.netloc:
+                logger.error(f"Invalid URL format: {url}")
+                return None
+                
+            # Create temporary file for PDF
+            with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_file:
+                temp_path = temp_file.name
+                
+            # Use wkhtmltopdf to convert webpage to PDF if it's installed
+            # This requires wkhtmltopdf to be installed on the system
+            # Alternatively, could use a cloud-based HTML-to-PDF service
+            try:
+                subprocess.run(
+                    ['wkhtmltopdf', url, temp_path],
+                    check=True,
+                    capture_output=True,
+                    timeout=60
+                )
+                
+                # Upload PDF to GCS
+                with open(temp_path, 'rb') as f:
+                    blob = self.bucket.blob(gcs_path)
+                    blob.upload_from_file(f, content_type='application/pdf')
+                
+                # Return GCS URI
+                gcs_uri = f"gs://{self.bucket_name}/{gcs_path}"
+                logger.info(f"Successfully converted webpage {url} to PDF and saved to {gcs_uri}")
+                return gcs_uri
+                
+            except (subprocess.SubprocessError, FileNotFoundError) as e:
+                logger.warning(f"wkhtmltopdf failed or not installed, trying alternative approach: {e}")
+                # Alternative approach: use a cloud service or API for HTML to PDF conversion
+                # For now, just save the HTML content
+                
+                response = requests.get(url, timeout=30)
+                response.raise_for_status()
+                
+                # Save HTML to GCS
+                blob = self.bucket.blob(gcs_path.replace('.pdf', '.html'))
+                blob.upload_from_string(response.text, content_type='text/html')
+                
+                gcs_uri = f"gs://{self.bucket_name}/{gcs_path.replace('.pdf', '.html')}"
+                logger.info(f"Saved webpage HTML to {gcs_uri} (PDF conversion not available)")
+                return gcs_uri
+                
+        except Exception as e:
+            logger.error(f"Error converting webpage to PDF: {e}")
+            return None
+        finally:
+            # Clean up temporary file
+            if 'temp_path' in locals() and os.path.exists(temp_path):
+                os.unlink(temp_path) 

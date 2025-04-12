@@ -1,0 +1,22 @@
+steps:
+# Install dependencies
+- name: 'python:3.11'
+  entrypoint: 'pip'
+  args: ['install', '-r', 'requirements.txt', '--user']
+
+# Deploy the Cloud Function
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: 'bash'
+  args:
+    - '-c'
+    - |
+      gcloud functions deploy cv_optimizer \
+        --gen2 \
+        --runtime=python311 \
+        --region=europe-west2 \
+        --source=. \
+        --entry-point=cv_optimizer \
+        --trigger-http
+
+# Optional timeout for the entire build
+timeout: '1800s'  # 30 minutes 

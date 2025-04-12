@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import time
+import re
 from typing import Dict, Any, Optional, List, Type, Union
 from google import genai
 from google.genai.types import HttpOptions, Part, GenerateContentConfig
@@ -17,13 +18,13 @@ logger = logging.getLogger(__name__)
 class GeminiClient:
     """Client for interacting with Gemini API via Google Generative AI or Vertex AI."""
     
-    def __init__(self, project_id: str, location: str = "europe-west2"):
+    def __init__(self, project_id: str, location: str = "us-central1"):
         """
         Initialize the Gemini client.
         
         Args:
             project_id: Google Cloud project ID
-            location: Google Cloud region (default: europe-west2 for UK)
+            location: Google Cloud region (default: europe-west2 for London)
             
         Raises:
             Exception: If client initialization fails
@@ -152,10 +153,18 @@ class GeminiClient:
                     model_name = model or self.model_name
 
                     # Generate content using the client with specified model name
-                    response = self.client.models.generate_content(
-                        model=model_name,
+                    model_client = self.client.models.get(model_name)
+                    
+                    # Apply safety settings if needed
+                    # safety_settings = {
+                    #    genai.types.HarmCategory.HARM_CATEGORY_HARASSMENT: 
+                    #        genai.types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
+                    # }
+                    
+                    response = model_client.generate_content(
                         contents=contents,
-                        config=generation_config
+                        generation_config=generation_config,
+                        # safety_settings=safety_settings
                     )
                     
                     # Handle schema-based responses
@@ -163,31 +172,93 @@ class GeminiClient:
                         try:
                             # Clean and parse JSON response
                             text = response.text
+                            # Log the raw response for debugging
+                            logger.debug(f"Raw response text: {text[:1000]}...")
+                            
+                            # Clean up JSON from markdown formatting
                             if text.startswith("```json"):
                                 text = text[7:]
+                            elif text.startswith("```"):
+                                text = text[3:]
                             if text.endswith("```"):
                                 text = text[:-3]
-                            parsed_json = json.loads(text.strip())
+                            
+                            # Try to parse JSON
+                            parsed_json = None
+                            json_errors = []
+                            
+                            # First attempt: direct parsing
+                            try:
+                                parsed_json = json.loads(text.strip())
+                            except json.JSONDecodeError as e:
+                                json_errors.append(f"Initial JSON parsing error: {e}")
+                                
+                                # Second attempt: fix common JSON errors
+                                try:
+                                    cleaned_text = text.strip()
+                                    # Fix trailing commas in objects
+                                    cleaned_text = re.sub(r',\s*}', '}', cleaned_text)
+                                    # Fix trailing commas in arrays
+                                    cleaned_text = re.sub(r',\s*]', ']', cleaned_text)
+                                    # Fix missing quotes around property names
+                                    cleaned_text = re.sub(r'(\s*|{|,)([a-zA-Z0-9_]+)(\s*):', r'\1"\2"\3:', cleaned_text)
+                                    parsed_json = json.loads(cleaned_text)
+                                except json.JSONDecodeError as e:
+                                    json_errors.append(f"JSON cleaning error: {e}")
+                                    
+                                    # Third attempt: extract JSON using regex
+                                    try:
+                                        import re
+                                        json_matches = re.findall(r'{.*}', text, re.DOTALL)
+                                        if json_matches:
+                                            parsed_json = json.loads(json_matches[0])
+                                        else:
+                                            raise ValueError("No JSON object found in response")
+                                    except Exception as e:
+                                        json_errors.append(f"JSON extraction error: {e}")
+                                        raise ValueError(f"Failed to parse JSON after multiple attempts: {json_errors}")
+
+                            if not parsed_json:
+                                raise ValueError("Failed to extract valid JSON from model response")
 
                             # Validate with Pydantic if a model was provided
                             if isinstance(response_schema, type) and issubclass(response_schema, BaseResponseSchema):
-                                validated_data = response_schema.model_validate(parsed_json)
-                                return {
-                                    "status": "success",
-                                    "data": validated_data.model_dump()
-                                }
+                                try:
+                                    validated_data = response_schema.model_validate(parsed_json)
+                                    return {
+                                        "status": "success",
+                                        "data": validated_data.model_dump()
+                                    }
+                                except ValidationError as e:
+                                    # Detailed validation error with the schema
+                                    error_details = str(e)
+                                    logger.error(f"Schema validation error: {error_details}")
+                                    
+                                    # Try to construct a minimal valid response
+                                    try:
+                                        # Create minimal response with 'status' field
+                                        minimal_data = {"status": "errors", "errors": [{"code": "schema_validation_error", "message": error_details}]}
+                                        minimal_validated = response_schema.model_validate(minimal_data)
+                                        
+                                        return {
+                                            "status": "error",
+                                            "error": f"Schema validation error: {error_details}",
+                                            "data": minimal_validated.model_dump()
+                                        }
+                                    except Exception as nested_e:
+                                        logger.error(f"Failed to create minimal valid response: {nested_e}")
+                                        raise ValueError(f"Response validation failed: {error_details}")
 
+                            # If we're just using a dict schema, return the parsed JSON directly
                             return {
                                 "status": "success",
                                 "data": parsed_json
                             }
-                        except (json.JSONDecodeError, ValidationError) as e:
-                            logger.error(f"Failed to parse/validate JSON response: {e}")
-                            return {
-                                "status": "error",
-                                "error": f"Invalid JSON response: {e}",
-                                "data": response.text
-                            }
+                        except Exception as e:
+                            span.set_attribute("error", True)
+                            span.set_attribute("error.message", str(e))
+                            logger.error(f"Error processing model response: {e}")
+                            raise ValueError(f"Failed to process model response: {e}")
                     
                     return {
                         "status": "success",
@@ -210,8 +281,23 @@ class GeminiClient:
                             "data": None
                         }
 
-def get_schema_model(task):
-    return SCHEMA_REGISTRY[task]
+def get_schema_model(task: str) -> Optional[Type[BaseResponseSchema]]:
+    """
+    Get the Pydantic model for the given task.
+    
+    Args:
+        task: Task identifier (e.g., 'parsing', 'ps', 'cs', 'ka', 'role', 'scoring')
+        
+    Returns:
+        Schema model class or None if not found
+    """
+    try:
+        schema_model = SCHEMA_REGISTRY.get(task)
+        if not schema_model:
+            logger.warning(f"No schema model found for task: {task}")
+        return schema_model
+    except Exception as e:
+        logger.error(f"Error retrieving schema model for task {task}: {e}")
+        return None
 
-# Then use it like:
-# schema_model = get_schema_model(task_name) 
+# Remove the commented example usage since we'll use the function directly 

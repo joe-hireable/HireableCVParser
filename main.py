@@ -8,6 +8,8 @@ from urllib.parse import urlparse
 import jwt
 from jwt.exceptions import ExpiredSignatureError, InvalidAudienceError, DecodeError
 from flask import Request, make_response, Response
+import base64
+import time
 
 from utils.storage import StorageClient
 from utils.document_processor import DocumentProcessor
@@ -54,10 +56,12 @@ tracer = trace.get_tracer(__name__)
 storage_client = None
 gemini_client = None
 doc_processor = None
+secret_manager_client = None
+adk_client = None
 
 def initialize_clients():
     """Initialize global client instances if they haven't been created yet."""
-    global storage_client, gemini_client, doc_processor
+    global storage_client, gemini_client, doc_processor, secret_manager_client, adk_client
     
     if not storage_client:
         storage_client = StorageClient(config.GCS_BUCKET_NAME)
@@ -68,10 +72,20 @@ def initialize_clients():
         )
     if not doc_processor:
         doc_processor = DocumentProcessor()
+    
+    # Initialize Secret Manager client if needed
+    if config.USE_SECRETS_MANAGER and not secret_manager_client:
+        from utils.secret_manager import SecretManagerClient
+        secret_manager_client = SecretManagerClient(config.SECRET_MANAGER_PROJECT)
+    
+    # Initialize ADK client if needed
+    if config.USE_ADK and not adk_client:
+        from utils.adk_client import ADKClient
+        adk_client = ADKClient(config.ADK_AGENT_LOCATION)
 
 def cleanup_clients():
     """Clean up global client instances."""
-    global storage_client, gemini_client, doc_processor
+    global storage_client, gemini_client, doc_processor, secret_manager_client, adk_client
     
     if doc_processor:
         doc_processor.cleanup()
@@ -80,6 +94,11 @@ def cleanup_clients():
         storage_client = None
     if gemini_client:
         gemini_client = None
+    if secret_manager_client:
+        secret_manager_client = None
+    if adk_client:
+        adk_client.cleanup()
+        adk_client = None
 
 def validate_url(url: str) -> None:
     """
@@ -121,20 +140,43 @@ def load_resource_file(task: str, resource_type: str) -> str:
     Returns:
         Content of the resource file
     """
-    # Define GCS paths instead of local paths
+    # Initialize clients if needed
+    global storage_client, secret_manager_client
+    if not storage_client:
+        initialize_clients()
+    
+    if config.USE_SECRETS_MANAGER:
+        # Use Secret Manager to get resources
+        if not secret_manager_client:
+            from utils.secret_manager import SecretManagerClient
+            secret_manager_client = SecretManagerClient(config.SECRET_MANAGER_PROJECT)
+
+        if resource_type == 'system_prompt':
+            content = secret_manager_client.get_prompt(task, "system", config.PROMPTS_SECRET_PREFIX)
+        elif resource_type == 'user_prompt':
+            content = secret_manager_client.get_prompt(task, "user", config.PROMPTS_SECRET_PREFIX)
+        elif resource_type == 'schema':
+            # For schema, we need it as a string for now, it will be parsed later
+            schema_dict = secret_manager_client.get_schema(task, config.SCHEMAS_SECRET_PREFIX)
+            content = json.dumps(schema_dict) if schema_dict else None
+        elif resource_type == 'examples':
+            content = secret_manager_client.get_examples(task, config.EXAMPLES_SECRET_PREFIX)
+        
+        if content is None:
+            logger.warning(f"Failed to find {resource_type} for {task} in Secret Manager, falling back to GCS")
+        else:
+            return content
+            
+    # Fall back to GCS if Secret Manager is not enabled or the secret is not found
+    # Define GCS paths
     file_paths = {
-        'system_prompt': 'prompts/system_prompt.md',
+        'system_prompt': f'prompts/system_prompt.md',
         'user_prompt': f'prompts/{task}_user_prompt.md',
         'schema': f'schemas/{task}_schema.json',
         'examples': f'few_shot_examples/{task}_few_shot_examples.md'
     }
     
     try:
-        # Use the global storage client that's properly initialized
-        global storage_client
-        if not storage_client:
-            initialize_clients()
-            
         content = storage_client.read_file(file_paths[resource_type])
         if content is None:
             raise FileNotFoundError(f"Could not read file from GCS: {file_paths[resource_type]}")
@@ -152,17 +194,52 @@ def fetch_resources(task: str) -> Tuple[str, str, str, Type[BaseResponseSchema]]
         
     Returns:
         Tuple of (system prompt, user prompt, few shot examples, schema model class)
+        
+    Raises:
+        ValueError: If required resources cannot be loaded or schema model is not found
     """
-    system_prompt = load_resource_file(task, 'system_prompt')
-    user_prompt = load_resource_file(task, 'user_prompt')
-    few_shot_examples = load_resource_file(task, 'examples')
-    
-    # Get the appropriate Pydantic model class for the task
-    schema_model = SCHEMA_REGISTRY.get(task)
-    if not schema_model:
-        raise ValueError(f"No schema model found for task: {task}")
-    
-    return system_prompt, user_prompt, few_shot_examples, schema_model
+    try:
+        system_prompt = load_resource_file(task, 'system_prompt')
+        user_prompt = load_resource_file(task, 'user_prompt')
+        few_shot_examples = load_resource_file(task, 'examples')
+        
+        # Get the appropriate Pydantic model class for the task
+        schema_model = SCHEMA_REGISTRY.get(task)
+        if not schema_model:
+            logger.error(f"No schema model found for task: {task}")
+            raise ValueError(f"No schema model found for task: {task}")
+
+        # Validate that schema file matches the Pydantic model
+        try:
+            schema_json = load_resource_file(task, 'schema')
+            if schema_json:
+                schema_dict = json.loads(schema_json)
+                # Compare schema keys with model fields
+                pydantic_schema = schema_model.model_json_schema()
+                
+                # Basic schema structure validation
+                required_fields = ['properties', 'required', 'type', '$defs']
+                missing_fields = [f for f in required_fields if f not in schema_dict and f in pydantic_schema]
+                
+                if missing_fields:
+                    logger.warning(f"Schema file for task '{task}' is missing fields: {', '.join(missing_fields)}")
+                
+                # Validate schema key fields match Pydantic model
+                if 'properties' in schema_dict and 'properties' in pydantic_schema:
+                    file_props = set(schema_dict['properties'].keys())
+                    model_props = set(pydantic_schema['properties'].keys())
+                    
+                    missing_in_file = model_props - file_props
+                    if missing_in_file:
+                        logger.warning(f"Schema file for task '{task}' is missing properties defined in model: {', '.join(missing_in_file)}")
+        except Exception as e:
+            logger.warning(f"Error validating schema for task '{task}': {str(e)}")
+        
+        return system_prompt, user_prompt, few_shot_examples, schema_model
+        
+    except Exception as e:
+        logger.error(f"Error fetching resources for task '{task}': {str(e)}")
+        raise ValueError(f"Failed to fetch resources for task '{task}': {str(e)}")
 
 # --- CORS Helper Functions ---
 # REMOVED: ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173").split(',')
@@ -218,17 +295,57 @@ def verify_supabase_jwt(auth_header: Optional[str]) -> Dict[str, Any]:
     expected_issuer = f"https://{SUPABASE_PROJECT_REF}.supabase.co/auth/v1"
     expected_audience = "authenticated"
 
+    # Pre-validate token format
     try:
+        # Check if the token is properly formed
+        header, payload_raw, signature = token.split('.')
+        # Decode the payload to validate the format (without verification)
+        payload_padding = payload_raw + '=' * (-len(payload_raw) % 4)
+        payload_bytes = base64.b64decode(payload_padding.translate(str.maketrans('-_', '+/')))
+        payload_dict = json.loads(payload_bytes)
+        
+        # Validate required JWT claims before full verification
+        if 'exp' not in payload_dict:
+            raise ValueError("Token is missing 'exp' (expiration) claim.")
+        if 'iat' not in payload_dict:
+            raise ValueError("Token is missing 'iat' (issued at) claim.")
+        if 'sub' not in payload_dict:
+            raise ValueError("Token is missing 'sub' (subject) claim.")
+        
+        # Check if token is expired by basic payload inspection (will be verified again by jwt.decode)
+        current_time = int(time.time())
+        if payload_dict['exp'] < current_time:
+            raise ExpiredSignatureError("Token has expired.")
+        
+        # Check if the token is used before it was issued
+        if payload_dict['iat'] > current_time:
+            raise ValueError("Token cannot be used before its 'iat' (issued at) time.")
+            
+    except (ValueError, IndexError, json.JSONDecodeError) as e:
+        raise ValueError(f"Malformed token: {e}")
+
+    try:
+        # Perform full token verification
         payload = jwt.decode(
             token,
             SUPABASE_JWT_SECRET,
             algorithms=["HS256"],
             audience=expected_audience,
-            issuer=expected_issuer
+            issuer=expected_issuer,
+            options={
+                'verify_signature': True,
+                'verify_exp': True,
+                'verify_iat': True,
+                'require': ['exp', 'iat', 'sub']
+            }
         )
-        # Check 'sub' claim exists
-        if 'sub' not in payload:
+        
+        # Additional validation on the payload
+        if not payload.get('sub'):
             raise ValueError("Token is missing 'sub' (subject) claim.")
+        if not payload.get('role'):
+            logger.warning("Token is missing 'role' claim.")
+            
         return payload
     except ExpiredSignatureError:
         raise ValueError("Token has expired.")
@@ -360,27 +477,40 @@ def cv_optimizer(request: Request):
                             jd_proc_span.set_attribute("jd_input_type", "url/gcs/text")
                             if jd_input.startswith(('http://', 'https://', 'gs://')):
                                 # Handle URL/GCS path for JD
-                                validate_url(jd_input) # Reuse existing validation
-                                jd_proc_span.set_attribute("jd_source_uri", jd_input)
+                                try:
+                                    validate_url(jd_input) # Reuse existing validation
+                                    jd_proc_span.set_attribute("jd_source_uri", jd_input)
 
-                                if jd_input.startswith('gs://'):
-                                    jd_gcs_uri = jd_input
-                                    jd_content = doc_processor.download_and_process(jd_gcs_uri)
-                                else: # HTTP(S) URL
-                                    if jd_input.lower().endswith('.pdf'):
-                                        # Direct PDF URL
-                                        jd_gcs_uri = storage_client.save_url_to_gcs(jd_input, f"uploads/{user_id}/jds/{uuid.uuid4()}.pdf")
-                                    else:
-                                        # Webpage URL -> convert to PDF in GCS
-                                        pdf_path = f"uploads/{user_id}/jds/{uuid.uuid4()}.pdf"
-                                        jd_gcs_uri = storage_client.save_webpage_as_pdf(jd_input, pdf_path)
+                                    if jd_input.startswith('gs://'):
+                                        # Validate GCS URI format
+                                        if not jd_input.startswith("gs://") or jd_input.count('/') < 2:
+                                            raise ValueError(f"Invalid GCS URI format: {jd_input}")
+                                        jd_gcs_uri = jd_input
+                                        jd_content = doc_processor.download_and_process(jd_gcs_uri)
+                                        if jd_content is None:
+                                            raise ValueError(f"Failed to download or process JD from GCS: {jd_gcs_uri}")
+                                    else: # HTTP(S) URL
+                                        if jd_input.lower().endswith('.pdf'):
+                                            # Direct PDF URL
+                                            jd_gcs_uri = storage_client.save_url_to_gcs(jd_input, f"uploads/{user_id}/jds/{uuid.uuid4()}.pdf")
+                                        else:
+                                            # Webpage URL -> convert to PDF in GCS
+                                            pdf_path = f"uploads/{user_id}/jds/{uuid.uuid4()}.pdf"
+                                            jd_gcs_uri = storage_client.save_webpage_as_pdf(jd_input, pdf_path)
 
-                                    if not jd_gcs_uri:
-                                         raise IOError(f"Failed to save JD from URL {jd_input} to GCS.")
-                                    jd_content = doc_processor.download_and_process(jd_gcs_uri)
-
-                                if jd_content is None:
-                                    raise ValueError(f"Failed to process JD from source: {jd_input}")
+                                        if not jd_gcs_uri:
+                                            raise IOError(f"Failed to save JD from URL {jd_input} to GCS.")
+                                        jd_content = doc_processor.download_and_process(jd_gcs_uri)
+                                        if jd_content is None:
+                                            raise ValueError(f"Failed to process JD from GCS: {jd_gcs_uri}")
+                                except ValueError as ve:
+                                    span.set_attribute("error", True)
+                                    span.set_attribute("error.message", str(ve))
+                                    raise ve
+                                except IOError as ioe:
+                                    span.set_attribute("error", True)
+                                    span.set_attribute("error.message", str(ioe))
+                                    raise ioe
 
                             else:
                                 # Handle raw text JD input
@@ -403,28 +533,46 @@ def cv_optimizer(request: Request):
                         few_shot_examples=few_shot_examples
                     )
 
-                    # --- Generate Content using Gemini ---
-                    with tracer.start_span("generate_gemini_content") as gemini_span:
-                        gemini_span.set_attribute("model", model)
-                        # Pass JD GCS URI if it exists and model supports multimodal
-                        # Check if model is multimodal before passing file_uri
-                        # For now, assume multimodal models might benefit from JD file
-                        file_uri_to_pass = jd_gcs_uri if jd_gcs_uri else None
-                        mime_type_to_pass = "application/pdf" if file_uri_to_pass else None
+                    # --- Generate Content using ADK or Gemini ---
+                    with tracer.start_span("generate_content") as content_span:
+                        content_span.set_attribute("model", model)
+                        content_span.set_attribute("use_adk", config.USE_ADK)
+                        
+                        if config.USE_ADK:
+                            # Use ADK for processing
+                            global adk_client
+                            if not adk_client:
+                                from utils.adk_client import ADKClient
+                                adk_client = ADKClient(config.ADK_AGENT_LOCATION)
+                                
+                            response_data = adk_client.process_cv(
+                                cv_content=cv_content,
+                                task=task,
+                                jd_content=jd_content,
+                                section=section,
+                                config={
+                                    "model": model
+                                }
+                            )
+                        else:
+                            # Use Gemini for processing
+                            # Pass JD GCS URI if it exists and model supports multimodal
+                            file_uri_to_pass = jd_gcs_uri if jd_gcs_uri else None
+                            mime_type_to_pass = "application/pdf" if file_uri_to_pass else None
 
-                        response_data = gemini_client.generate_content(
-                            prompt=user_prompt,
-                            response_schema=schema_model,
-                            system_prompt=system_prompt,
-                            model=model,
-                            file_uri=file_uri_to_pass, # Pass JD URI if available
-                            mime_type=mime_type_to_pass
-                        )
-
-                        gemini_span.set_attribute("response.status", response_data["status"])
+                            response_data = gemini_client.generate_content(
+                                prompt=user_prompt,
+                                response_schema=schema_model,
+                                system_prompt=system_prompt,
+                                model=model,
+                                file_uri=file_uri_to_pass, # Pass JD URI if available
+                                mime_type=mime_type_to_pass
+                            )
+                        
+                        content_span.set_attribute("response.status", response_data["status"])
                         if response_data["status"] == "error":
-                            gemini_span.set_attribute("error", True)
-                            gemini_span.set_attribute("error.message", response_data["error"])
+                            content_span.set_attribute("error", True)
+                            content_span.set_attribute("error.message", response_data["error"])
 
                     # --- Handle Response ---
                     if response_data["status"] == "success":

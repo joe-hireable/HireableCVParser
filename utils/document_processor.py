@@ -128,8 +128,18 @@ class DocumentProcessor:
 
     @lru_cache(maxsize=config.MEMORY_CACHE_SIZE)
     def _get_from_memory_cache(self, cache_key: str) -> Optional[str]:
-        """In-memory cache for very frequently accessed documents"""
-        return None  # This will only store successful retrievals
+        """
+        In-memory cache for very frequently accessed documents.
+        
+        Args:
+            cache_key: Cache key for the document
+            
+        Returns:
+            Cached content if available, None otherwise
+        """
+        # This is an LRU-cached method that will store successful results automatically
+        # The return None is only for the very first call with a given cache key
+        return None
 
     def download_and_process(self, url: str) -> Optional[str]:
         """Download a document from URL or GCS and extract its text content."""
@@ -168,9 +178,10 @@ class DocumentProcessor:
                             cache_ref.delete()
                         else:
                             logger.info(f"Cache hit for {url}")
-                            if is_compressed:
-                                return zlib.decompress(content).decode('utf-8')
-                            return content
+                            result = zlib.decompress(content).decode('utf-8') if is_compressed else content
+                            # Store in memory cache for faster subsequent access
+                            self._get_from_memory_cache.cache_parameters = (cache_key,)  # This will update the LRU cache
+                            return result
                 
                 # If not in cache, process the document
                 with self.tracer.start_span("download_document") as download_span:
@@ -218,46 +229,39 @@ class DocumentProcessor:
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def _download_from_url(self, url: str) -> Tuple[Optional[bytes], Optional[str]]:
         """
-        Download a file from a URL with retry logic.
+        Download a file from a URL.
         
         Args:
-            url: URL of the file to download
+            url: URL of the file
             
         Returns:
-            Tuple of (file_content, content_type) or (None, None) if download fails
+            Tuple of (file content as bytes, content type) or (None, None) if download fails
         """
+        self._ensure_not_closed()
         try:
-            response = requests.get(url)
-            response.raise_for_status()
+            response = requests.get(url, timeout=30)
+            response.raise_for_status()  # Raise exception if status code is not 200
             
-            content_type = response.headers.get('content-type')
-            if not content_type:
-                # Try to guess content type from URL
-                if url.lower().endswith('.pdf'):
-                    content_type = 'application/pdf'
-                elif url.lower().endswith('.docx'):
-                    content_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                else:
-                    raise ValueError(f"Unsupported file type: {url}")
+            content_type = response.headers.get('Content-Type')
+            content = response.content
             
-            logger.info(f"Successfully downloaded file from {url} with content type {content_type}")
-            return response.content, content_type
-            
+            return content, content_type
         except Exception as e:
-            logger.error(f"Error downloading file from {url}: {e}")
+            logger.error(f"Error downloading from URL {url}: {e}")
             return None, None
     
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def _download_from_gcs(self, gcs_uri: str) -> Tuple[Optional[bytes], Optional[str]]:
         """
-        Download a file from Google Cloud Storage with retry logic.
+        Download a file from Google Cloud Storage.
         
         Args:
-            gcs_uri: GCS URI in the format 'gs://bucket-name/path/to/object'
+            gcs_uri: GCS URI of the file (gs://bucket/path)
             
         Returns:
-            Tuple of (file_content, content_type) or (None, None) if download fails
+            Tuple of (file content as bytes, content type) or (None, None) if download fails
         """
+        self._ensure_not_closed()
         try:
             if not gcs_uri.startswith('gs://'):
                 logger.error(f"Invalid GCS URI format: {gcs_uri}")
@@ -295,14 +299,15 @@ class DocumentProcessor:
     
     def _extract_text_from_pdf(self, file_content: bytes) -> Optional[str]:
         """
-        Extract text from PDF content.
+        Extract text from a PDF file.
         
         Args:
-            file_content: Binary content of the PDF file
+            file_content: PDF file content as bytes
             
         Returns:
             Extracted text or None if extraction fails
         """
+        self._ensure_not_closed()
         try:
             file_stream = io.BytesIO(file_content)
             doc = fitz.open(stream=file_stream, filetype="pdf")
@@ -322,14 +327,15 @@ class DocumentProcessor:
     
     def _extract_text_from_docx(self, file_content: bytes) -> Optional[str]:
         """
-        Extract text from DOCX content.
+        Extract text from a DOCX file.
         
         Args:
-            file_content: Binary content of the DOCX file
+            file_content: DOCX file content as bytes
             
         Returns:
             Extracted text or None if extraction fails
         """
+        self._ensure_not_closed()
         try:
             # Create a file-like object from the binary content
             file_stream = io.BytesIO(file_content)

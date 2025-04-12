@@ -43,7 +43,7 @@ class FeedbackModel(BaseModel):
         min_items=1,
         max_items=5
     )
-    areas_to_improve: List[constr(max_length=200)] = Field(
+    areasToImprove: List[constr(max_length=200)] = Field(
         description="Improvement suggestions",
         min_items=1,
         max_items=5
@@ -85,44 +85,30 @@ class LanguageModel(BaseModel):
 
 class ExperienceModel(BaseModel):
     company: str = Field(description="Company or organization name")
-    start: Optional[str] = Field(description="Overall start date of employment at the company")
-    end: Optional[str] = Field(description="Overall end date of employment at the company")
-    current: bool = Field(description="Whether this is the current company")
-    summary: Optional[str] = Field(description="Brief summary of overall responsibilities at the company")
-    highlights: Optional[List[str]] = Field(description="Key achievements during the tenure at the company")
-    roles: List[ParsingRoleModel] = Field(description="Specific positions held at this company", min_items=1)
+    title: str = Field(description="Job title")
+    start: Optional[str] = Field(description="Start date (e.g., MMM YYYY or YYYY)")
+    end: Optional[str] = Field(description="End date (e.g., MMM YYYY or YYYY)")
+    current: bool = Field(description="Whether this is the current role")
+    summary: Optional[str] = Field(description="Brief summary of responsibilities")
+    highlights: Optional[List[str]] = Field(description="Key achievements during the role")
 
-class QualificationModel(BaseModel):
+class EducationModel(BaseModel):
+    institution: str = Field(description="Educational institution name")
     qualification: Optional[str] = Field(description="Degree or certification type")
     course: str = Field(description="Field of study or course name")
     start: Optional[str] = Field(description="Start date")
     end: Optional[str] = Field(description="End date")
     grade: Optional[str] = Field(description="Grade or classification")
-
-class EducationModel(BaseModel):
-    institution: str = Field(description="Educational institution name")
     location: Optional[LocationModel] = Field(description="Institution location")
-    qualifications: Optional[List[QualificationModel]] = Field(description="Qualifications obtained")
 
 class CertificationModel(BaseModel):
     name: str = Field(description="Certification name")
     issuer: Optional[str] = Field(description="Issuing organization")
     date: Optional[str] = Field(description="Date of certification")
 
-class MembershipModel(BaseModel):
+class ProfessionalMembershipModel(BaseModel):
     institution: str = Field(description="Professional organization name")
     name: str = Field(description="Membership type/level")
-
-class EarlierRoleModel(BaseModel):
-    title: str = Field(description="Job title")
-    start: Optional[str] = Field(description="Start date")
-    end: Optional[str] = Field(description="End date")
-
-class EarlierCareerModel(BaseModel):
-    company: str = Field(description="Company name")
-    start: Optional[str] = Field(description="Start date")
-    end: Optional[str] = Field(description="End date")
-    roles: List[EarlierRoleModel] = Field(description="Positions held")
 
 class PublicationModel(BaseModel):
     pubType: Optional[str] = Field(description="Publication type")
@@ -144,10 +130,9 @@ class ParsingDataModel(BaseModel):
     experience: List[ExperienceModel] = Field(description="Work experience")
     education: Optional[List[EducationModel]] = Field(description="Educational background")
     certifications: Optional[List[CertificationModel]] = Field(description="Professional certifications")
-    professionalMemberships: Optional[List[MembershipModel]] = Field(description="Professional memberships")
-    earlierCareer: Optional[List[EarlierCareerModel]] = Field(description="Earlier career positions")
+    professionalMemberships: Optional[List[ProfessionalMembershipModel]] = Field(description="Professional memberships")
     publications: Optional[List[PublicationModel]] = Field(description="Published works")
-    addDetails: Optional[List[str]] = Field(description="Additional details")
+    additionalDetails: Optional[List[str]] = Field(description="Additional details")
 
 class ParsingResponseSchema(BaseResponseSchema):
     """Schema for CV/resume parsing response"""
