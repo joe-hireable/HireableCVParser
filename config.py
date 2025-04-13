@@ -15,11 +15,14 @@ PROJECT_ID = os.getenv("PROJECT_ID", "hireable-places")
 LOCATION = os.getenv("LOCATION", "europe-west9")
 
 # Vertex AI settings
-DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "gemini-pro")
+DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "gemini-2.5-pro-preview-03-25")
 SUPPORTED_MODELS: List[str] = [
-    "gemini-pro",
-    "gemini-pro-vision",
-    "gemini-1.5-pro",
+    "gemini-2.0-flash-001",
+    "gemini-2.0-flash-lite",
+    "gemini-2.5-pro-preview-03-25",
+    "gemini-2.5-pro",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-001"
 ]
 VERTEX_AI_ENABLED = os.getenv("VERTEX_AI_ENABLED", "true").lower() in ("true", "1", "yes")
 
