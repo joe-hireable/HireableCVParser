@@ -103,12 +103,22 @@ class GeminiClient:
         if json_blocks:
             return json_blocks[0]
         
-        # Try to find JSON objects with curly braces
+        # Try to find JSON objects with curly braces, matching the pattern more carefully
         json_objects = re.findall(r'({[\s\S]*?})', text)
-        if json_objects:
-            return json_objects[0]
         
-        # If no JSON blocks or objects found, return the original text
+        if json_objects:
+            # Try each JSON object until we find a valid one
+            for json_obj in json_objects:
+                try:
+                    # Simple validation check
+                    test_obj = json.loads(json_obj)
+                    # If it parses successfully, return it
+                    return json_obj
+                except json.JSONDecodeError:
+                    # Try the next one
+                    continue
+        
+        # If no JSON blocks or valid objects found, return the original text
         return text
 
     def _process_schema_response(self, response_text: str, schema: Optional[Type[BaseModel]] = None) -> Dict[str, Any]:

@@ -12,7 +12,7 @@ from datetime import timezone
 import requests
 from google.cloud import storage, firestore
 from tenacity import retry, stop_after_attempt, wait_exponential
-import fitz  # PyMuPDF
+from pypdf import PdfReader
 import docx
 from opentelemetry import trace
 import config
@@ -22,16 +22,22 @@ logger = logging.getLogger(__name__)
 class DocumentProcessor:
     """Handles document download and processing operations."""
     
-    def __init__(self):
+    def __init__(self, storage_client=None, vertex_client=None, system_prompt=None, user_prompt=None, few_shot_examples=None, schema_model=None):
         """Initialize the document processor."""
         self.tracer = trace.get_tracer(__name__)
         logger.info("Initialized DocumentProcessor")
-        # Initialize storage client with ADC
-        self.storage_client = storage.Client()
+        # Initialize storage client with ADC if not provided
+        self.storage_client = storage_client or storage.Client()
         # Initialize Firestore client
         self.db = firestore.Client()
         # Track if resources are closed
         self._closed = False
+        # Store additional parameters
+        self.vertex_client = vertex_client
+        self.system_prompt = system_prompt
+        self.user_prompt = user_prompt
+        self.few_shot_examples = few_shot_examples
+        self.schema_model = schema_model
         
     def __enter__(self):
         """Context manager entry."""
@@ -302,7 +308,7 @@ class DocumentProcessor:
     
     def _extract_text_from_pdf(self, file_content: bytes) -> Optional[str]:
         """
-        Extract text from a PDF file.
+        Extract text from a PDF file using pypdf.
         
         Args:
             file_content: PDF file content as bytes
@@ -313,17 +319,15 @@ class DocumentProcessor:
         self._ensure_not_closed()
         try:
             file_stream = io.BytesIO(file_content)
-            doc = fitz.open(stream=file_stream, filetype="pdf")
+            pdf_reader = PdfReader(file_stream)
             
             # Process pages in chunks to reduce memory usage
             text_chunks = []
-            for page_num in range(len(doc)):
-                page = doc[page_num]
-                text = page.get_text().strip()
+            for page in pdf_reader.pages:
+                text = page.extract_text().strip()
                 if text:
                     text_chunks.append(text)
             
-            doc.close()
             return "\n".join(text_chunks)
             
         except Exception as e:
@@ -357,4 +361,63 @@ class DocumentProcessor:
             
         except Exception as e:
             logger.error(f"Error extracting text from DOCX: {e}")
-            return None 
+            return None
+
+    def process_document(self, cv_content: bytes, jd_content: Optional[bytes] = None) -> dict:
+        """
+        Process a document using the Vertex AI client.
+        
+        Args:
+            cv_content: CV file content as bytes
+            jd_content: Optional JD file content as bytes
+            
+        Returns:
+            dict: Processing results
+        """
+        self._ensure_not_closed()
+        with self.tracer.start_as_current_span("process_document") as span:
+            try:
+                # Extract text from CV
+                cv_text = None
+                if cv_content:
+                    # Try PDF first
+                    cv_text = self._extract_text_from_pdf(cv_content)
+                    if not cv_text:
+                        # Try DOCX if PDF fails
+                        cv_text = self._extract_text_from_docx(cv_content)
+                
+                if not cv_text:
+                    raise ValueError("Failed to extract text from CV file")
+                
+                # Extract text from JD if provided
+                jd_text = None
+                if jd_content:
+                    jd_text = self._extract_text_from_pdf(jd_content)
+                    if not jd_text:
+                        jd_text = self._extract_text_from_docx(jd_content)
+                
+                # Process with Vertex AI
+                if not self.vertex_client:
+                    raise ValueError("Vertex AI client not initialized")
+                
+                # Format the prompt with the extracted text
+                prompt = self.user_prompt.format(
+                    cv_content=cv_text,
+                    jd_content=jd_text or "",
+                    few_shot_examples=self.few_shot_examples or ""
+                )
+                
+                # Generate content using Vertex AI
+                result = self.vertex_client.generate_content(
+                    prompt=prompt,
+                    system_prompt=self.system_prompt,
+                    schema_model=self.schema_model
+                )
+                
+                return result
+                
+            except Exception as e:
+                span.set_attribute("error", True)
+                span.set_attribute("error.message", str(e))
+                logger.error(f"Error processing document: {e}")
+                raise 

@@ -16,7 +16,12 @@ steps:
         --region=europe-west2 \
         --source=. \
         --entry-point=cv_optimizer \
-        --trigger-http
+        --trigger-http \
+        --memory=512MB \
+        --timeout=540s \
+        --min-instances=0 \
+        --max-instances=10 \
+        --set-env-vars=ENVIRONMENT=production,LOG_LEVEL=INFO,USE_SECRETS_MANAGER=true
 
 # Set IAM policy for the function to restrict access
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -24,8 +29,7 @@ steps:
   args:
     - '-c'
     - |
-      # Allow function to be invoked by allUsers for now - change this to specific accounts
-      # as needed for more restricted access
+      # Restrict access to specific service accounts
       gcloud functions add-iam-policy-binding cv_optimizer \
         --gen2 \
         --region=europe-west2 \

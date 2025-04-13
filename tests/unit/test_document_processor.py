@@ -47,31 +47,25 @@ class TestDocumentProcessor:
             processor.db = MagicMock()
             return processor
 
-    @patch("utils.document_processor.fitz.open")
-    def test_extract_text_from_pdf(self, mock_fitz_open, document_processor):
+    @patch("utils.document_processor.PdfReader")
+    def test_extract_text_from_pdf(self, mock_pdf_reader, document_processor):
         """Test extracting text from a PDF file."""
         # Mock the PDF document and page
-        mock_doc = MagicMock()
         mock_page = MagicMock()
-        mock_page.get_text.return_value = "Sample PDF text content"
-        mock_doc.__len__.return_value = 1
-        mock_doc.__getitem__.return_value = mock_page
-        mock_fitz_open.return_value = mock_doc
+        mock_page.extract_text.return_value = "Sample PDF text content"
+        mock_pdf_reader.return_value.pages = [mock_page]
 
         # Test with a mock file content
         pdf_content = b"dummy PDF content"
         result = document_processor._extract_text_from_pdf(pdf_content)
 
-        # Verify fitz.open was called with the correct arguments
-        mock_fitz_open.assert_called_once()
+        # Verify PdfReader was called with the correct arguments
+        mock_pdf_reader.assert_called_once()
         # Check that the first argument is a BytesIO object
-        assert isinstance(mock_fitz_open.call_args[1]['stream'], io.BytesIO)
+        assert isinstance(mock_pdf_reader.call_args[0][0], io.BytesIO)
 
         # Check returned text
         assert result == "Sample PDF text content"
-
-        # Verify the document was closed
-        mock_doc.close.assert_called_once()
 
     @patch("utils.document_processor.docx.Document")
     def test_extract_text_from_docx(self, mock_docx_document, document_processor):
@@ -97,15 +91,15 @@ class TestDocumentProcessor:
         # Check returned text - should have newlines between paragraphs
         assert result == "First paragraph\nSecond paragraph"
 
-    @patch("utils.document_processor.fitz.open", side_effect=Exception("PDF error"))
-    def test_extract_text_from_pdf_error(self, mock_fitz_open, document_processor):
+    @patch("utils.document_processor.PdfReader", side_effect=Exception("PDF error"))
+    def test_extract_text_from_pdf_error(self, mock_pdf_reader, document_processor):
         """Test handling errors when extracting text from a PDF file."""
         # Test with a mock file content
         pdf_content = b"corrupt PDF content"
         result = document_processor._extract_text_from_pdf(pdf_content)
 
-        # Verify fitz.open was called
-        mock_fitz_open.assert_called_once()
+        # Verify PdfReader was called
+        mock_pdf_reader.assert_called_once()
 
         # Check that None is returned on error
         assert result is None

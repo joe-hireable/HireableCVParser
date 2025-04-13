@@ -7,12 +7,51 @@
 #   $ gcloud topic gcloudignore
 #
 .gcloudignore
-# If you would like to upload your .git directory, .gitignore file or files
-# from your .gitignore file, remove the corresponding line
-# below:
+
+# Git
 .git
 .gitignore
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+test_*.py
+tests/
 
-node_modules
+# Virtual Environment - all variations
+venv/
+venv*/
+.venv/
+ENV/
+env/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local development and secrets
+.env
+.env.local
+*.log
 keys/
+credentials.json
+*credentials*.json
+*token*.json
+service-account*.json
+
+# Build/Development tools
+node_modules/
+rustup-init.exe
+*.exe
+
+# Unnecessary for production
+README.md
+IAM_AUTHENTICATION.md
+trigger-build.bat
+.cursorrules
+requirements-dev.txt

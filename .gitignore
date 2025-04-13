@@ -4,7 +4,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -14,32 +13,48 @@ eggs/
 lib/
 lib64/
 parts/
-.env.yaml
-prompts/
-schemas/
-few_shot_examples/
 sdist/
-keys/
 var/
 *.egg-info/
 .installed.cfg
 *.egg
+.pytest_cache/
 
-# Virtual Environment
+# Virtual Environment - include all variations
 venv/
-ENV/
+venv*/
 .venv/
+ENV/
+env/
 
-# IDE
+# IDE files
 .idea/
 .vscode/
 *.swp
 *.swo
 
-# Local development
+# Local development and secrets
 .env
 .env.local
+.env.yaml
 *.log
+keys/
+credentials.json
+*credentials*.json
+*token*.json
+service-account*.json
 
 # Google Cloud
-credentials.json 
+.gcp/
+
+# Temporary files
+tmp/
+temp/
+
+# Binary files
+*.exe
+
+# Prompts
+prompts/
+schemas/
+few_shot_examples/ 
