@@ -1,0 +1,70 @@
+{
+	"info": {
+		"_postman_id": "cv-optimizer-collection",
+		"name": "CV Optimizer API",
+		"description": "Collection for testing the CV Optimizer API endpoints",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Optimize CV",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{supabase_anon_key}}",
+						"type": "text"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"cv_text\": \"Your CV text here\",\n    \"job_description\": \"Optional job description\",\n    \"optimization_type\": \"general\"\n}"
+				},
+				"url": {
+					"raw": "{{api_base_url}}/cv_optimizer",
+					"host": [
+						"{{api_base_url}}"
+					],
+					"path": [
+						"cv_optimizer"
+					]
+				},
+				"description": "Optimize a CV based on provided text and optional job description"
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "{{api_base_url}}",
+			"type": "string"
+		}
+	]
+} 
