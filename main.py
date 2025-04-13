@@ -7,9 +7,12 @@ import uuid
 from urllib.parse import urlparse
 import jwt
 from jwt.exceptions import ExpiredSignatureError, InvalidAudienceError, DecodeError
-from flask import Request, make_response, Response
+from flask import Request, make_response, Response, Flask
 import base64
 import time
+
+# Create a Flask app for testing
+app = Flask(__name__)
 
 from utils.storage import StorageClient
 from utils.document_processor import DocumentProcessor
@@ -361,7 +364,7 @@ def verify_supabase_jwt(auth_header: Optional[str]) -> Dict[str, Any]:
 @functions_framework.http
 def cv_optimizer(request: Request):
     """
-    Main Cloud Function handler. Handles CORS, JWT auth, and processes CV/JD.
+    Main Cloud Function handler. Handles CORS, IAM and JWT auth, and processes CV/JD.
     Expects multipart/form-data with 'cv_file' and form fields like 'task', 'jd'.
     """
     # --- CORS Preflight Handling ---
@@ -381,21 +384,36 @@ def cv_optimizer(request: Request):
         try:
             # --- Authentication ---
             with tracer.start_span("authenticate_request") as auth_span:
-                auth_header = request.headers.get("Authorization")
-                try:
-                    # Verify JWT and extract user ID ('sub' claim)
-                    jwt_payload = verify_supabase_jwt(auth_header)
-                    user_id = jwt_payload.get('sub')
-                    if not user_id:
-                         raise ValueError("User ID ('sub') not found in JWT payload.")
-                    auth_span.set_attribute("user.id", user_id)
-                    logger.info(f"Authenticated user: {user_id}", extra={'request_id': request_id})
-                except ValueError as auth_error:
-                    auth_span.set_attribute("error", True)
-                    auth_span.set_attribute("error.message", str(auth_error))
-                    logger.warning(f"Authentication failed: {auth_error}", extra={'request_id': request_id})
-                    response = make_response(json.dumps({"error": f"Unauthorized: {auth_error}"}), 401)
-                    return _corsify_actual_response(response)
+                # Check for IAM authentication via X-Goog-IAP-JWT-Assertion or X-Goog-Authenticated-User-Email
+                # This handles IAM authentication at the Google Cloud level
+                gcp_auth_user = request.headers.get("X-Goog-Authenticated-User-Email")
+                gcp_iap_user = request.headers.get("X-Goog-IAP-JWT-Assertion")
+                
+                if gcp_auth_user or gcp_iap_user:
+                    # If authenticated through GCP IAM, log and proceed
+                    auth_user = gcp_auth_user or "IAP Authenticated User"
+                    logger.info(f"GCP authenticated user: {auth_user}", extra={'request_id': request_id})
+                    auth_span.set_attribute("auth.method", "gcp_iam")
+                    # We don't have a user_id from Supabase in this case
+                    # Could optionally extract from GCP email if needed
+                else:
+                    # Fall back to Supabase JWT verification
+                    auth_header = request.headers.get("Authorization")
+                    try:
+                        # Verify JWT and extract user ID ('sub' claim)
+                        jwt_payload = verify_supabase_jwt(auth_header)
+                        user_id = jwt_payload.get('sub')
+                        if not user_id:
+                             raise ValueError("User ID ('sub') not found in JWT payload.")
+                        auth_span.set_attribute("user.id", user_id)
+                        auth_span.set_attribute("auth.method", "supabase_jwt")
+                        logger.info(f"Authenticated user: {user_id}", extra={'request_id': request_id})
+                    except ValueError as auth_error:
+                        auth_span.set_attribute("error", True)
+                        auth_span.set_attribute("error.message", str(auth_error))
+                        logger.warning(f"Authentication failed: {auth_error}", extra={'request_id': request_id})
+                        response = make_response(json.dumps({"error": f"Unauthorized: {auth_error}"}), 401)
+                        return _corsify_actual_response(response)
 
             # Health check (moved after auth for consistency, or keep public if needed)
             if request.method == 'GET' and request.path == '/health':

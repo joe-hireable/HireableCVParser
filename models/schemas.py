@@ -1,5 +1,5 @@
-from typing import List, Optional, Dict
-from pydantic import BaseModel, Field, ConfigDict, constr
+from typing import List, Optional, Dict, Annotated
+from pydantic import BaseModel, Field, ConfigDict, constr, field_validator
 from enum import Enum
 from datetime import datetime
 
@@ -38,16 +38,16 @@ class ErrorModel(BaseModel):
     severity: SeverityEnum = Field(default=SeverityEnum.ERROR)
 
 class FeedbackModel(BaseModel):
-    strengths: List[constr(max_length=200)] = Field(
+    strengths: Annotated[List[str], Field(
         description="Effective aspects",
-        min_items=1,
-        max_items=5
-    )
-    areasToImprove: List[constr(max_length=200)] = Field(
+        min_length=1,
+        max_length=5
+    )]
+    areasToImprove: Annotated[List[str], Field(
         description="Improvement suggestions",
-        min_items=1,
-        max_items=5
-    )
+        min_length=1,
+        max_length=5
+    )]
 
 class BaseResponseSchema(BaseModel):
     """Base class for all response schemas with common configuration"""
@@ -61,18 +61,18 @@ class BaseResponseSchema(BaseModel):
 # New Model for Roles within Parsing Experience
 class ParsingRoleModel(BaseModel):
     title: str = Field(description="Job title for this specific role")
-    start: Optional[str] = Field(description="Start date in this role (e.g., MMM YYYY or YYYY)")
-    end: Optional[str] = Field(description="End date in this role (e.g., MMM YYYY or YYYY)")
+    start: Optional[str] = None
+    end: Optional[str] = None
     current: bool = Field(description="Whether this specific role is current")
 
 class LinkModel(BaseModel):
-    title: Optional[str] = Field(description="Link title or platform name")
-    url: Optional[str] = Field(description="Full URL of the link")
+    title: Optional[str] = None
+    url: Optional[str] = None
 
 class LocationModel(BaseModel):
-    city: Optional[str] = Field(description="City name")
-    country: Optional[str] = Field(description="Country name")
-    postalCode: Optional[str] = Field(description="Postal code or ZIP")
+    city: Optional[str] = None
+    country: Optional[str] = None
+    postalCode: Optional[str] = None
 
 class SkillModel(BaseModel):
     name: str = Field(description="Name of the skill")
@@ -81,58 +81,58 @@ class SkillModel(BaseModel):
 
 class LanguageModel(BaseModel):
     name: str = Field(description="Language name")
-    level: Optional[LanguageLevelEnum] = Field(description="Proficiency level")
+    level: Optional[LanguageLevelEnum] = None
 
 class ExperienceModel(BaseModel):
     company: str = Field(description="Company or organization name")
     title: str = Field(description="Job title")
-    start: Optional[str] = Field(description="Start date (e.g., MMM YYYY or YYYY)")
-    end: Optional[str] = Field(description="End date (e.g., MMM YYYY or YYYY)")
+    start: Optional[str] = None
+    end: Optional[str] = None
     current: bool = Field(description="Whether this is the current role")
-    summary: Optional[str] = Field(description="Brief summary of responsibilities")
-    highlights: Optional[List[str]] = Field(description="Key achievements during the role")
+    summary: Optional[str] = None
+    highlights: Optional[List[str]] = None
 
 class EducationModel(BaseModel):
     institution: str = Field(description="Educational institution name")
-    qualification: Optional[str] = Field(description="Degree or certification type")
+    qualification: Optional[str] = None
     course: str = Field(description="Field of study or course name")
-    start: Optional[str] = Field(description="Start date")
-    end: Optional[str] = Field(description="End date")
-    grade: Optional[str] = Field(description="Grade or classification")
-    location: Optional[LocationModel] = Field(description="Institution location")
+    start: Optional[str] = None
+    end: Optional[str] = None
+    grade: Optional[str] = None
+    location: Optional[LocationModel] = None
 
 class CertificationModel(BaseModel):
     name: str = Field(description="Certification name")
-    issuer: Optional[str] = Field(description="Issuing organization")
-    date: Optional[str] = Field(description="Date of certification")
+    issuer: Optional[str] = None
+    date: Optional[str] = None
 
 class ProfessionalMembershipModel(BaseModel):
     institution: str = Field(description="Professional organization name")
     name: str = Field(description="Membership type/level")
 
 class PublicationModel(BaseModel):
-    pubType: Optional[str] = Field(description="Publication type")
+    pubType: Optional[str] = None
     title: str = Field(description="Publication title")
-    date: Optional[str] = Field(description="Publication date")
+    date: Optional[str] = None
 
 class ParsingDataModel(BaseModel):
-    firstName: Optional[str] = Field(description="First name")
-    surname: Optional[str] = Field(description="Last name")
-    email: Optional[str] = Field(description="Email address")
-    phone: Optional[str] = Field(description="Phone number")
-    links: Optional[List[LinkModel]] = Field(description="Professional links")
-    location: Optional[LocationModel] = Field(description="Current location")
+    firstName: Optional[str] = None
+    surname: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    links: Optional[List[LinkModel]] = None
+    location: Optional[LocationModel] = None
     headline: str = Field(description="Professional headline")
     profileStatement: str = Field(description="Professional summary")
     skills: List[SkillModel] = Field(description="Professional skills")
     achievements: List[str] = Field(description="Notable achievements")
-    languages: Optional[List[LanguageModel]] = Field(description="Languages known")
+    languages: Optional[List[LanguageModel]] = None
     experience: List[ExperienceModel] = Field(description="Work experience")
-    education: Optional[List[EducationModel]] = Field(description="Educational background")
-    certifications: Optional[List[CertificationModel]] = Field(description="Professional certifications")
-    professionalMemberships: Optional[List[ProfessionalMembershipModel]] = Field(description="Professional memberships")
-    publications: Optional[List[PublicationModel]] = Field(description="Published works")
-    additionalDetails: Optional[List[str]] = Field(description="Additional details")
+    education: Optional[List[EducationModel]] = None
+    certifications: Optional[List[CertificationModel]] = None
+    professionalMemberships: Optional[List[ProfessionalMembershipModel]] = None
+    publications: Optional[List[PublicationModel]] = None
+    additionalDetails: Optional[List[str]] = None
 
 class ParsingResponseSchema(BaseResponseSchema):
     """Schema for CV/resume parsing response"""
@@ -140,16 +140,16 @@ class ParsingResponseSchema(BaseResponseSchema):
 
 # Competency and Skills Schema Models
 class CSSkillModel(BaseModel):
-    name: constr(max_length=50) = Field(description="Standardized skill name")
+    name: Annotated[str, Field(description="Standardized skill name", max_length=50)]
     proficiency: SkillProficiencyEnum = Field(description="Skill proficiency level")
     skillType: SkillTypeEnum = Field(description="Skill type")
 
 class CSDataModel(BaseModel):
-    skills: List[CSSkillModel] = Field(
+    skills: Annotated[List[CSSkillModel], Field(
         description="Prioritized skills",
-        min_items=5,
-        max_items=14
-    )
+        min_length=5,
+        max_length=14
+    )]
     feedback: FeedbackModel = Field(description="Analysis feedback")
 
 class CSResponseSchema(BaseResponseSchema):
@@ -158,11 +158,11 @@ class CSResponseSchema(BaseResponseSchema):
 
 # Knowledge and Achievements Schema Models
 class KADataModel(BaseModel):
-    achievements: List[constr(max_length=300)] = Field(
+    achievements: Annotated[List[Annotated[str, Field(max_length=300)]], Field(
         description="STAR-formatted achievements",
-        min_items=2,
-        max_items=8
-    )
+        min_length=2,
+        max_length=8
+    )]
     feedback: FeedbackModel = Field(description="Analysis feedback")
 
 class KAResponseSchema(BaseResponseSchema):
@@ -171,7 +171,7 @@ class KAResponseSchema(BaseResponseSchema):
 
 # Profile Statement Schema Models
 class PSDataModel(BaseModel):
-    profileStatement: constr(max_length=750) = Field(description="Optimized professional summary")
+    profileStatement: Annotated[str, Field(description="Optimized professional summary", max_length=750)]
     feedback: FeedbackModel = Field(description="Analysis feedback")
 
 class PSResponseSchema(BaseResponseSchema):
@@ -180,26 +180,26 @@ class PSResponseSchema(BaseResponseSchema):
 
 # Role Schema Models
 class RoleModel(BaseModel):
-    title: constr(max_length=100) = Field(description="Standardized job title")
+    title: Annotated[str, Field(description="Standardized job title", max_length=100)]
     start: Optional[str] = Field(description="Role start date")
     end: Optional[str] = Field(description="Role end date")
     current: bool = Field(description="Whether this role is current")
 
 class RoleDataModel(BaseModel):
-    company: constr(max_length=100) = Field(description="Company name")
-    start: Optional[str] = Field(description="Overall employment start date")
-    end: Optional[str] = Field(description="Overall employment end date")
+    company: Annotated[str, Field(description="Company name", max_length=100)]
+    start: Optional[str] = None
+    end: Optional[str] = None
     current: bool = Field(description="Whether this is current")
-    summary: Optional[constr(max_length=400)] = Field(description="Responsibilities overview")
-    highlights: Optional[List[constr(max_length=200)]] = Field(
+    summary: Optional[Annotated[str, Field(description="Responsibilities overview", max_length=400)]] = None
+    highlights: Optional[Annotated[List[Annotated[str, Field(max_length=200)]], Field(
         description="Key achievements",
-        max_items=6
-    )
-    roles: List[RoleModel] = Field(
+        max_length=6
+    )]] = None
+    roles: Annotated[List[RoleModel], Field(
         description="Positions held",
-        min_items=1,
-        max_items=10
-    )
+        min_length=1,
+        max_length=10
+    )]
     feedback: FeedbackModel = Field(description="Analysis feedback")
 
 class RoleResponseSchema(BaseResponseSchema):
@@ -219,7 +219,7 @@ class ScoresModel(BaseModel):
 class ScoringDataModel(BaseModel):
     scores: ScoresModel = Field(description="Numerical scores across dimensions")
     feedback: FeedbackModel = Field(description="Analysis feedback")
-    matchAssessment: Optional[str] = Field(description="Overall assessment of candidate fit or CV quality", max_length=500)
+    matchAssessment: Optional[Annotated[str, Field(description="Overall assessment of candidate fit or CV quality", max_length=500)]] = None
 
 class ScoringResponseSchema(BaseResponseSchema):
     """Schema for CV scoring against job description"""

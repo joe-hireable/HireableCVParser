@@ -170,40 +170,40 @@ class DocumentProcessor:
                         
                         # Check if cache has expired using UTC timestamp
                         expiration = cache_data.get('expiration')
-                        current_utc = datetime.datetime.now(timezone.utc)
-                        if expiration and not expiration.tzinfo:
-                            expiration = expiration.replace(tzinfo=timezone.utc)
-                        if expiration and expiration < current_utc:
-                            logger.info(f"Cache expired for {url}")
-                            cache_ref.delete()
-                        else:
-                            logger.info(f"Cache hit for {url}")
-                            result = zlib.decompress(content).decode('utf-8') if is_compressed else content
-                            # Store in memory cache for faster subsequent access
-                            self._get_from_memory_cache.cache_parameters = (cache_key,)  # This will update the LRU cache
-                            return result
+                        if expiration:
+                            if not isinstance(expiration, datetime.datetime):
+                                logger.warning(f"Invalid expiration type in cache: {type(expiration)}")
+                                cache_ref.delete()
+                            else:
+                                if not expiration.tzinfo:
+                                    expiration = expiration.replace(tzinfo=timezone.utc)
+                                current_utc = datetime.datetime.now(timezone.utc)
+                                if expiration < current_utc:
+                                    logger.info(f"Cache expired for {url}")
+                                    cache_ref.delete()
+                                else:
+                                    logger.info(f"Cache hit for {url}")
+                                    result = zlib.decompress(content).decode('utf-8') if is_compressed else content
+                                    # Store in memory cache for faster subsequent access
+                                    self._get_from_memory_cache.cache_parameters = (cache_key,)  # This will update the LRU cache
+                                    return result
                 
                 # If not in cache, process the document
                 with self.tracer.start_span("download_document") as download_span:
                     if url.startswith('gs://'):
                         file_content, content_type = self._download_from_gcs(url)
-                        download_span.set_attribute("source", "gcs")
                     else:
                         file_content, content_type = self._download_from_url(url)
-                        download_span.set_attribute("source", "url")
                     
-                    if not file_content:
+                    if not file_content or not content_type:
                         span.set_attribute("error", True)
                         span.set_attribute("error.message", "Failed to download document")
-                        return None
-                
-                # Process the document
-                with self.tracer.start_span("extract_text") as process_span:
-                    process_span.set_attribute("content_type", content_type)
+                        raise ValueError(f"Failed to download document from {url}")
+                    
                     # Validate content types explicitly
                     if content_type not in config.ALLOWED_CONTENT_TYPES:
                         logger.warning(f"Unsupported content type: {content_type}")
-                        return None
+                        raise ValueError(f"Unsupported file format: {content_type}")
                     
                     # Extract text based on content type
                     text_content = None
@@ -213,7 +213,10 @@ class DocumentProcessor:
                         text_content = self._extract_text_from_docx(file_content)
                     else:
                         logger.warning(f"Unsupported content type: {content_type}")
-                        return None
+                        raise ValueError(f"Unsupported file format: {content_type}")
+                    
+                    if text_content is None:
+                        raise ValueError(f"Failed to extract text from document")
                 
                 # Cache the result if successful
                 if text_content:
@@ -224,7 +227,7 @@ class DocumentProcessor:
                 span.set_attribute("error", True)
                 span.set_attribute("error.message", str(e))
                 logger.error(f"Error processing document: {e}")
-                return None
+                raise  # Re-raise the exception to ensure test failures are caught
     
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def _download_from_url(self, url: str) -> Tuple[Optional[bytes], Optional[str]]:
@@ -316,7 +319,9 @@ class DocumentProcessor:
             text_chunks = []
             for page_num in range(len(doc)):
                 page = doc[page_num]
-                text_chunks.append(page.get_text())
+                text = page.get_text().strip()
+                if text:
+                    text_chunks.append(text)
             
             doc.close()
             return "\n".join(text_chunks)
@@ -343,10 +348,9 @@ class DocumentProcessor:
             # Create a docx document object
             doc = docx.Document(file_stream)
             
-            # Extract text from all paragraphs
-            text = ""
-            for para in doc.paragraphs:
-                text += para.text + "\n"
+            # Extract text from all paragraphs and join with single newlines
+            paragraphs = [para.text.strip() for para in doc.paragraphs if para.text.strip()]
+            text = "\n".join(paragraphs)
             
             logger.info(f"Successfully extracted {len(text)} characters from DOCX")
             return text

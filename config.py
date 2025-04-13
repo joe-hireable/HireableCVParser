@@ -10,14 +10,23 @@ JD_FOLDER = "jds"
 PROJECT_ID = "hireable-places"
 LOCATION = "europe-west9"  # Paris region
 
-# Gemini API settings
-DEFAULT_MODEL = "gemini-2.5-pro-preview-03-25"
+# Vertex AI settings
+DEFAULT_MODEL = "gemini-pro"  # Using the stable Vertex AI model
 SUPPORTED_MODELS = [
-    "gemini-2.5-pro-preview-03-25",     # Default model
-    "gemini-2.0-flash", # Faster model
-    "gemini-2.5-flash-lite"        # Added higher quality model
+    "gemini-pro",           # Default model for text generation
+    "gemini-pro-vision",    # For multimodal tasks
+    "gemini-1.5-pro",       # Latest model when available
 ]
-VERTEX_AI_ENABLED = True  # Flag to switch between direct Gemini API and Vertex AI
+VERTEX_AI_ENABLED = True    # Always use Vertex AI
+
+# Model configuration
+DEFAULT_GENERATION_CONFIG = {
+    "temperature": 0.5,
+    "top_p": 0.95,
+    "top_k": 40,
+    "max_output_tokens": 8192,
+    "candidate_count": 1
+}
 
 # Google ADK settings
 USE_ADK = os.environ.get("USE_ADK", "false").lower() in ("true", "1", "yes")
@@ -51,4 +60,9 @@ CACHE_COMPRESSION_THRESHOLD = 1000000  # Size in bytes above which to compress c
 ALLOWED_CONTENT_TYPES = [
     'application/pdf',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-] 
+]
+
+# Retry configuration for Vertex AI
+MAX_RETRIES = 3
+BASE_DELAY = 1  # Base delay in seconds
+MAX_DELAY = 10  # Maximum delay in seconds 

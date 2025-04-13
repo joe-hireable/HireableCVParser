@@ -256,4 +256,23 @@ class StorageClient:
         finally:
             # Clean up temporary file
             if 'temp_path' in locals() and os.path.exists(temp_path):
-                os.unlink(temp_path) 
+                os.unlink(temp_path)
+
+    def delete_file(self, path: str) -> bool:
+        """
+        Delete a file from GCS.
+        
+        Args:
+            path: Path to the file in the bucket to delete
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            blob = self.bucket.blob(path)
+            blob.delete()
+            logger.info(f"Successfully deleted file at {path}")
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting file {path}: {str(e)}")
+            return False 

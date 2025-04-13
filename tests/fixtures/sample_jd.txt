@@ -1,0 +1,32 @@
+Software Engineer - Cloud Infrastructure
+
+Company: Innovative Tech Solutions
+Location: Remote with occasional visits to London office
+
+Job Description:
+We are seeking a talented Software Engineer with a focus on cloud infrastructure to join our dynamic team. The ideal candidate will have experience designing, implementing, and maintaining cloud-based systems on major platforms like GCP and AWS.
+
+Requirements:
+- 3+ years of professional experience in software development
+- Strong proficiency in Python and related frameworks
+- Experience with cloud infrastructure (GCP preferred)
+- Knowledge of containerization (Docker, Kubernetes)
+- Familiarity with CI/CD pipelines
+- Excellent problem-solving skills and attention to detail
+- Bachelor's degree in Computer Science or equivalent experience
+
+Responsibilities:
+- Design and develop cloud-based solutions
+- Implement and maintain backend services
+- Optimize application performance and reliability
+- Collaborate with cross-functional teams
+- Participate in code reviews and technical discussions
+- Stay up-to-date with emerging trends and technologies
+
+Benefits:
+- Competitive salary
+- Flexible working hours
+- Remote-first culture
+- Professional development opportunities
+- Health insurance
+- 25 days annual leave 

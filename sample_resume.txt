@@ -1,0 +1,61 @@
+JOHN DOE
+Software Engineer
+john.doe@example.com | (555) 123-4567 | linkedin.com/in/johndoe
+123 Main Street, New York, NY 10001
+
+SUMMARY
+Experienced software engineer with 5+ years of experience developing web applications and cloud infrastructure. Skilled in Python, JavaScript, and cloud technologies. Strong background in machine learning and data analysis.
+
+SKILLS
+Programming: Python, JavaScript, TypeScript, Java, SQL
+Frameworks: React, Node.js, Django, Flask, FastAPI
+Cloud: AWS (EC2, S3, Lambda), Google Cloud Platform (GCP), Firebase
+Tools: Git, Docker, Kubernetes, CI/CD, Terraform
+Data: SQL, NoSQL, Data Analysis, Machine Learning
+
+EXPERIENCE
+Senior Software Engineer
+Tech Innovations Inc. | New York, NY | January 2020 - Present
+- Developed and maintained microservices architecture using Python and GCP
+- Implemented CI/CD pipelines reducing deployment time by 40%
+- Led team of 5 engineers in rebuilding the company's core product
+- Optimized database queries resulting in 30% performance improvement
+
+Software Engineer
+DataViz Solutions | Boston, MA | June 2017 - December 2019
+- Built data visualization dashboards using React and D3.js
+- Collaborated with data scientists to implement machine learning models
+- Developed RESTful APIs using Django REST Framework
+- Migrated legacy systems to cloud-based architecture
+
+Junior Developer
+StartUp Tech | San Francisco, CA | January 2016 - May 2017
+- Assisted in developing front-end components with React
+- Implemented automated testing for web applications
+- Collaborated in an agile team environment
+
+EDUCATION
+Master of Science in Computer Science
+Stanford University | 2015 - 2017
+- Specialization in Machine Learning and Artificial Intelligence
+
+Bachelor of Science in Computer Engineering
+MIT | 2011 - 2015
+- Minor in Mathematics
+- GPA: 3.8/4.0
+
+PROJECTS
+AI-Powered Resume Parser
+- Developed an ML model to extract structured information from resumes
+- Used NLP techniques and Python libraries for text processing
+- Achieved 92% accuracy in information extraction
+
+Cloud-Based File Management System
+- Built a secure file storage and sharing system on AWS
+- Implemented end-to-end encryption and access controls
+- Used serverless architecture for scalability
+
+CERTIFICATIONS
+- AWS Certified Solutions Architect
+- Google Cloud Professional Data Engineer
+- Microsoft Certified: Azure Developer Associate 
