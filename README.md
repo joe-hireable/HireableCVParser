@@ -9,6 +9,7 @@ A Google Cloud Function that uses Gemini 2.0 to analyze, optimize, and provide i
 - [Prerequisites](#prerequisites)
 - [Getting Started](#getting-started)
 - [API Usage](#api-usage)
+- [Frontend Integration Guide](#frontend-integration-guide)
 - [Project Structure](#project-structure)
 - [Configuration](#configuration)
 - [Deployment](#deployment)
@@ -133,7 +134,259 @@ curl -X POST https://YOUR_FUNCTION_URL \
   -F "model=gemini-2.0-flash-001"
 ```
 
-## 📂 Project Structure
+## 🎨 Frontend Integration Guide
+
+### React + Vite Integration
+
+#### 1. API Client Setup
+
+Create a dedicated API client using Axios or Fetch:
+
+```typescript
+// src/services/api.ts
+import axios from 'axios';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+export const cvApi = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'multipart/form-data',
+  },
+});
+
+// Add auth interceptor
+cvApi.interceptors.request.use((config) => {
+  const token = localStorage.getItem('supabase_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+```
+
+#### 2. Type Definitions
+
+Define TypeScript interfaces for API responses:
+
+```typescript
+// src/types/cv.ts
+export interface CVData {
+  contact_info: {
+    name: string;
+    email: string;
+    phone?: string;
+    location?: string;
+  };
+  experience: Array<{
+    title: string;
+    company: string;
+    duration: string;
+    description: string;
+  }>;
+  education: Array<{
+    degree: string;
+    institution: string;
+    year: string;
+  }>;
+  skills: string[];
+}
+
+export interface CVScore {
+  overall: number;
+  skills_match: number;
+  experience_match: number;
+  education_match: number;
+}
+
+export interface CVResponse {
+  cv_data: CVData;
+  scores?: CVScore;
+  personal_statement?: string;
+}
+```
+
+#### 3. React Hooks
+
+Create custom hooks for API interactions:
+
+```typescript
+// src/hooks/useCVOptimizer.ts
+import { useState } from 'react';
+import { cvApi } from '../services/api';
+import { CVResponse } from '../types/cv';
+
+export const useCVOptimizer = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const analyzeCV = async (
+    file: File,
+    task: 'parsing' | 'ps' | 'cs' | 'ka' | 'role' | 'scoring',
+    jd?: string
+  ): Promise<CVResponse | null> => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const formData = new FormData();
+      formData.append('cv_file', file);
+      formData.append('task', task);
+      if (jd) formData.append('jd', jd);
+
+      const response = await cvApi.post<CVResponse>('', formData);
+      return response.data;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { analyzeCV, loading, error };
+};
+```
+
+#### 4. Component Example
+
+Example React component using the hook:
+
+```typescript
+// src/components/CVUploader.tsx
+import { useState } from 'react';
+import { useCVOptimizer } from '../hooks/useCVOptimizer';
+import { CVResponse } from '../types/cv';
+
+export const CVUploader = () => {
+  const [result, setResult] = useState<CVResponse | null>(null);
+  const { analyzeCV, loading, error } = useCVOptimizer();
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const response = await analyzeCV(file, 'parsing');
+    if (response) {
+      setResult(response);
+    }
+  };
+
+  return (
+    <div>
+      <input type="file" accept=".pdf,.docx,.txt" onChange={handleFileUpload} />
+      {loading && <div>Analyzing CV...</div>}
+      {error && <div className="error">{error}</div>}
+      {result && (
+        <div>
+          <h2>Analysis Results</h2>
+          <pre>{JSON.stringify(result, null, 2)}</pre>
+        </div>
+      )}
+    </div>
+  );
+};
+```
+
+#### 5. Environment Configuration
+
+Create a `.env` file in your Vite project:
+
+```env
+VITE_API_BASE_URL=http://localhost:8080  # Development
+# VITE_API_BASE_URL=https://your-production-api.com  # Production
+```
+
+#### 6. Error Handling
+
+Implement comprehensive error handling:
+
+```typescript
+// src/utils/errorHandling.ts
+export class APIError extends Error {
+  constructor(
+    message: string,
+    public status?: number,
+    public code?: string
+  ) {
+    super(message);
+    this.name = 'APIError';
+  }
+}
+
+export const handleAPIError = (error: unknown): APIError => {
+  if (error instanceof APIError) return error;
+  
+  if (axios.isAxiosError(error)) {
+    return new APIError(
+      error.response?.data?.message || 'API request failed',
+      error.response?.status,
+      error.response?.data?.code
+    );
+  }
+  
+  return new APIError('An unexpected error occurred');
+};
+```
+
+#### 7. Testing
+
+Example test setup using Vitest:
+
+```typescript
+// src/components/__tests__/CVUploader.test.tsx
+import { render, fireEvent, waitFor } from '@testing-library/react';
+import { CVUploader } from '../CVUploader';
+import { vi } from 'vitest';
+
+describe('CVUploader', () => {
+  it('handles file upload and displays results', async () => {
+    const { getByRole, findByText } = render(<CVUploader />);
+    
+    const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' });
+    const input = getByRole('file');
+    
+    fireEvent.change(input, { target: { files: [file] } });
+    
+    await waitFor(() => {
+      expect(findByText('Analysis Results')).toBeTruthy();
+    });
+  });
+});
+```
+
+### Best Practices
+
+1. **Authentication**
+   - Implement token refresh logic
+   - Store tokens securely (preferably in HttpOnly cookies)
+   - Handle token expiration gracefully
+
+2. **File Upload**
+   - Implement file size limits
+   - Validate file types client-side
+   - Show upload progress
+   - Handle large files with chunked uploads if needed
+
+3. **Error Handling**
+   - Implement retry logic for failed requests
+   - Show user-friendly error messages
+   - Log errors for debugging
+   - Handle network issues gracefully
+
+4. **Performance**
+   - Implement request caching where appropriate
+   - Use request debouncing for frequent operations
+   - Optimize file uploads with compression
+   - Implement proper loading states
+
+5. **Security**
+   - Sanitize all user inputs
+   - Implement CSRF protection
+   - Use secure headers
+   - Follow OWASP security guidelines
+
+## �� Project Structure
 
 ```
 root/
@@ -234,155 +487,4 @@ The project includes several test suites:
 
 1. **API Tests** (`test_api.py`): Tests for API endpoints and request handling
 2. **IAM Authentication Tests** (`test_iam_auth.py`): Tests for IAM authentication
-3. **Basic Functionality Tests** (`test_basic.py`): Tests for core functionality
-
-Run tests using pytest:
-```bash
-pytest tests/
-```
-
-For development dependencies:
-```bash
-pip install -r requirements-dev.txt
-```
-
-# Supabase Token Generator
-
-A simple script to generate a Supabase authentication token for testing API endpoints in Postman.
-
-## Setup
-
-1. Install the required dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
-
-2. Configure your Supabase credentials:
-   - Copy the `.env` file and fill in your Supabase details:
-     ```
-     SUPABASE_URL=https://your-project-ref.supabase.co
-     SUPABASE_ANON_KEY=your-anon-key
-     SUPABASE_EMAIL=your-email@example.com
-     SUPABASE_PASSWORD=your-password
-     ```
-   - You can find your Supabase URL and anon key in your Supabase project settings
-
-## Usage
-
-1. Run the script:
-   ```
-   python get_supabase_token.py
-   ```
-
-2. If you haven't set your email and password in the `.env` file, the script will prompt you to enter them.
-
-3. The script will:
-   - Authenticate with Supabase
-   - Display the token in the console
-   - Save the token to `supabase_token.txt` for easy copying
-
-4. Use the token in Postman:
-   - Add a header: `Authorization: Bearer your-token-here`
-
-## Security Notes
-
-- Never commit your `.env` file to version control
-- The token has a limited lifespan and will need to be refreshed
-- For production applications, implement proper token refresh logic 
-
-# CV Optimizer API Testing Tool
-
-This tool allows for comprehensive testing of the CV Optimizer API, which is part of the backend for the CV Builder 2.0 application.
-
-## Setup
-
-1. Make sure you have the required dependencies installed:
-
-```bash
-pip install -r requirements.txt
-```
-
-2. Create a `.env` file with the following variables:
-
-```
-SUPABASE_JWT_SECRET="your-supabase-jwt-secret"
-SUPABASE_PROJECT_REF="your-supabase-project-ref"
-API_BASE_URL="http://your-api-url:8080"  # Optional, defaults to localhost:8080
-```
-
-3. Ensure you have a sample CV file for testing. A sample file `sample_resume.txt` is included.
-
-## Usage
-
-Run the script with the desired test options:
-
-```bash
-python test_api.py [options]
-```
-
-### Available Options
-
-- `--all`: Run all available tests
-- `--parsing`: Test CV parsing functionality
-- `--scoring`: Test CV scoring functionality with a job description
-- `--ps`: Test personal statement generation
-- `--models`: Test different model selections
-- `--auth-failure`: Test authentication failure
-- `--invalid-file`: Test with invalid file types
-- `--token`: Generate and print a token for manual testing (default if no tests specified)
-- `--url URL`: Override the API URL
-- `--cv PATH`: Specify a custom CV file path for testing
-
-### Examples
-
-1. Generate a JWT token for manual testing:
-
-```bash
-python test_api.py --token
-```
-
-2. Test CV parsing with a custom CV file:
-
-```bash
-python test_api.py --parsing --cv path/to/your/cv.pdf
-```
-
-3. Test against a specific API endpoint:
-
-```bash
-python test_api.py --all --url https://your-api-endpoint.com
-```
-
-4. Test just the personal statement generation:
-
-```bash
-python test_api.py --ps
-```
-
-## Response Structure
-
-Each test validates that the API response matches the expected structure:
-
-- CV Parsing: Should return `cv_data` with `contact_info` and other structured CV information
-- CV Scoring: Should return `scores` with matching metrics for the resume against the job description
-- Personal Statement: Should return `personal_statement` with a tailored personal statement
-- Error cases: Should return appropriate status codes and error messages
-
-## Supported CV File Formats
-
-The API supports the following CV file formats:
-- Plain text (`.txt`)
-- PDF (`.pdf`)
-- Microsoft Word (`.docx`)
-
-## Error Testing
-
-The script can test various error conditions:
-- Authentication failures (invalid/expired tokens)
-- Invalid file types
-- Invalid model names
-- Missing required parameters
-
-## Adding New Tests
-
-You can extend the test suite by adding new functions that use the `make_api_request` helper function and adding appropriate command-line arguments in the `main()` function. 
+3. **Basic Functionality Tests** (`test_basic.py`
